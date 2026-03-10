@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 import LoginScreen from '../components/LoginScreen';
 import AppHeader from '../components/AppHeader';
 import SearchBar from '../components/SearchBar';
@@ -8,7 +10,6 @@ import AdminPanel from '../components/AdminPanel';
 
 const APP_ID = 'lge-pjt-tracker-v1';
 const ADMIN_EMAIL = 'jh5.park@lge.com';
-const API_KEY_GEMINI = '';
 
 interface UserSession {
   email: string;
