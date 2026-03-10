@@ -59,9 +59,8 @@ const DetailModal: React.FC<DetailModalProps> = ({ project, onClose, onSearchDev
         if (isCancelled) return;
 
         if (!error && data?.success && Array.isArray(data.articles)) {
-          // URL이 유효한 기사만 필터링
           const validArticles = data.articles.filter(
-            (a: NewsArticle) => a.title && a.url && a.url.startsWith('http')
+            (a: NewsArticle) => a.title
           );
           setNewsArticles(validArticles);
         } else {
