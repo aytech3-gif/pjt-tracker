@@ -14,7 +14,63 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      search_results: {
+        Row: {
+          area: string | null
+          builder: string | null
+          date: string | null
+          designer: string | null
+          developer: string | null
+          id: string
+          project_address: string | null
+          project_name: string | null
+          purpose: string | null
+          scale: string | null
+          search_query: string
+          searched_at: string
+          source: string | null
+          status: string | null
+          summary: string | null
+          user_email: string
+        }
+        Insert: {
+          area?: string | null
+          builder?: string | null
+          date?: string | null
+          designer?: string | null
+          developer?: string | null
+          id?: string
+          project_address?: string | null
+          project_name?: string | null
+          purpose?: string | null
+          scale?: string | null
+          search_query: string
+          searched_at?: string
+          source?: string | null
+          status?: string | null
+          summary?: string | null
+          user_email: string
+        }
+        Update: {
+          area?: string | null
+          builder?: string | null
+          date?: string | null
+          designer?: string | null
+          developer?: string | null
+          id?: string
+          project_address?: string | null
+          project_name?: string | null
+          purpose?: string | null
+          scale?: string | null
+          search_query?: string
+          searched_at?: string
+          source?: string | null
+          status?: string | null
+          summary?: string | null
+          user_email?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
