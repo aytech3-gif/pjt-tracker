@@ -216,8 +216,9 @@ serve(async (req) => {
 
     console.log(`Web search: ${webText.length} chars, Public data: ${pub.length} items`);
 
-    // 2단계: AI가 웹 검색 결과를 구조화
+    // 2단계: AI가 웹 검색 결과 + 자체 지식으로 구조화
     const aiStructured = await structureWithAI(query, webText, LOVABLE_API_KEY);
+    console.log(`AI structured: ${Array.isArray(aiStructured) ? aiStructured.length : 0} items`);
 
     // Tag results
     const taggedAI = (Array.isArray(aiStructured) ? aiStructured : []).map((item: any, idx: number) => ({
