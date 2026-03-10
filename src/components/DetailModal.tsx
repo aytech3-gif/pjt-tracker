@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, Copy, CheckCircle,
-  User, Building2, Maximize2, Info, Database, Calendar, MapPin, Pencil, Search, Loader2
+  User, Building2, Maximize2, Info, Database, Calendar, MapPin, Pencil, Search, Loader2,
+  Newspaper, ExternalLink
 } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 import type { ProjectResult } from './ResultsList';
 
 interface DetailModalProps {
