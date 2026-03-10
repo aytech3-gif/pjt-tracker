@@ -292,11 +292,18 @@ const DetailModal: React.FC<DetailModalProps> = ({ project, onClose, onSearchDev
                             <p className="font-display text-xs text-foreground line-clamp-2 group-hover:underline">
                               {article.title}
                             </p>
-                            {article.description && (
-                              <p className="mt-1 font-data text-[10px] text-muted-foreground line-clamp-2">
-                                {article.description}
-                              </p>
-                            )}
+                            <div className="mt-1 flex items-center gap-2">
+                              {article.date && (
+                                <span className="font-data text-[10px] text-primary">
+                                  {article.date}
+                                </span>
+                              )}
+                              {article.description && (
+                                <span className="font-data text-[10px] text-muted-foreground line-clamp-1">
+                                  {article.description}
+                                </span>
+                              )}
+                            </div>
                           </div>
                           <ExternalLink className="mt-0.5 h-3 w-3 flex-shrink-0 text-muted-foreground group-hover:text-foreground" />
                         </div>
