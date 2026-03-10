@@ -185,7 +185,7 @@ serve(async (req) => {
   }
 
   try {
-    const { query } = await req.json();
+    const { query, userEmail } = await req.json();
     if (!query || typeof query !== "string") {
       return new Response(
         JSON.stringify({ error: "query is required" }),
