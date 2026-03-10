@@ -29,40 +29,58 @@ async function searchWeb(query: string): Promise<string> {
     return "";
   }
 
+  // 다중 검색 쿼리로 더 넓은 범위 커버
+  const queries = [
+    `${query}`,
+    `${query} 주요 사업 실적 포트폴리오 프로젝트`,
+  ];
+
   try {
-    const response = await fetch("https://api.firecrawl.dev/v1/search", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${FIRECRAWL_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        query: `${query} 건설 프로젝트 시행사 시공사`,
-        limit: 10,
-        lang: "ko",
-        country: "kr",
-        scrapeOptions: {
-          formats: ["markdown"],
-          onlyMainContent: true,
+    const searchPromises = queries.map(async (q) => {
+      const response = await fetch("https://api.firecrawl.dev/v1/search", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${FIRECRAWL_API_KEY}`,
+          "Content-Type": "application/json",
         },
-      }),
+        body: JSON.stringify({
+          query: q,
+          limit: 8,
+          lang: "ko",
+          country: "kr",
+          scrapeOptions: {
+            formats: ["markdown"],
+            onlyMainContent: true,
+          },
+        }),
+      });
+
+      if (!response.ok) return [];
+      const data = await response.json();
+      return data?.data || data?.results || [];
     });
 
-    if (!response.ok) {
-      console.error("Firecrawl search error:", response.status);
-      return "";
+    const resultsArrays = await Promise.all(searchPromises);
+    const allResults: any[] = [];
+    for (const arr of resultsArrays) {
+      if (Array.isArray(arr)) allResults.push(...arr);
     }
 
-    const data = await response.json();
-    const results = data?.data || data?.results || [];
+    if (allResults.length === 0) return "";
 
-    if (!Array.isArray(results) || results.length === 0) return "";
+    // URL 기준 중복 제거
+    const seen = new Set<string>();
+    const unique = allResults.filter((r: any) => {
+      const key = r.url || r.title || "";
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
 
-    // 검색 결과를 텍스트로 요약
-    return results
-      .slice(0, 8)
+    return unique
+      .slice(0, 12)
       .map((r: any, i: number) =>
-        `[${i + 1}] ${r.title || ""}\n${r.description || r.snippet || ""}\n${r.markdown?.slice(0, 800) || ""}`
+        `[${i + 1}] ${r.title || ""}\n${r.description || r.snippet || ""}\n${r.markdown?.slice(0, 1000) || ""}`
       )
       .join("\n\n---\n\n");
   } catch (e) {
