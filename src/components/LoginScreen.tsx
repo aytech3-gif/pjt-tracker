@@ -42,11 +42,11 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
             <form onSubmit={handleEmailSubmit} className="space-y-5">
               <div>
                 <label className="mb-2 block font-body text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                  Employee Email
+                  Email Address
                 </label>
                 <input
                   type="email"
-                  placeholder="name@lge.com"
+                  placeholder="email@example.com"
                   required
                   className="w-full rounded-lg border border-border bg-background px-4 py-3 font-data text-sm text-foreground outline-none transition-all focus:border-foreground"
                   value={email}
