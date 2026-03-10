@@ -1,32 +1,54 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  X, Copy, CheckCircle, ExternalLink,
-  User, Building2, Maximize2, Info, Database, Calendar, MapPin
+  X, Copy, CheckCircle,
+  User, Building2, Maximize2, Info, Database, Calendar, MapPin, Pencil, Search, Loader2
 } from 'lucide-react';
 import type { ProjectResult } from './ResultsList';
 
 interface DetailModalProps {
   project: ProjectResult | null;
   onClose: () => void;
+  onSearchDeveloper?: (developer: string) => void;
 }
 
-const DetailModal: React.FC<DetailModalProps> = ({ project, onClose }) => {
+const DetailModal: React.FC<DetailModalProps> = ({ project, onClose, onSearchDeveloper }) => {
   const [copySuccess, setCopySuccess] = useState(false);
+  const [devSearching, setDevSearching] = useState(false);
 
   if (!project) return null;
 
   const copyToClipboard = () => {
-    const text = `[현장정보] ${project.name}\n주소: ${project.address}\n용도: ${project.purpose}\n규모: ${project.scale}\n시행: ${project.developer}\n시공: ${project.builder}\n현황: ${project.status}\n출처: LG PJT-Tracker Intelligence`;
+    const text = `[현장정보] ${project.name}\n주소: ${project.address}\n용도: ${project.purpose}\n규모: ${project.scale}\n설계: ${project.designer || '-'}\n시행: ${project.developer}\n시공: ${project.builder}\n현황: ${project.status}\n출처: LG PJT-Tracker Intelligence`;
     navigator.clipboard.writeText(text).then(() => {
       setCopySuccess(true);
       setTimeout(() => setCopySuccess(false), 2000);
     });
   };
 
+  const handleDeveloperClick = () => {
+    if (!project.developer || project.developer === '정보 없음' || project.developer === '미정' || project.developer === '확인필요') return;
+    if (onSearchDeveloper) {
+      setDevSearching(true);
+      onSearchDeveloper(project.developer);
+      onClose();
+    }
+  };
+
+  const openNaverMap = () => {
+    window.open(`https://map.naver.com/v5/search/${encodeURIComponent(project.address)}`, '_blank');
+  };
+
+  const openGoogleMap = () => {
+    window.open(`https://www.google.com/maps/search/${encodeURIComponent(project.address)}`, '_blank');
+  };
+
+  const isClickableDeveloper = project.developer && project.developer !== '정보 없음' && project.developer !== '미정' && project.developer !== '확인필요';
+
   const fields = [
-    { label: '시행사', value: project.developer, icon: User },
+    { label: '시행사', value: project.developer, icon: User, clickable: isClickableDeveloper },
     { label: '시공사', value: project.builder, icon: Building2 },
+    { label: '설계사', value: project.designer, icon: Pencil },
     { label: '건물규모', value: project.scale, icon: Maximize2 },
     { label: '연면적', value: project.area, icon: Info },
     { label: '주요용도', value: project.purpose, icon: Database },
@@ -41,10 +63,8 @@ const DetailModal: React.FC<DetailModalProps> = ({ project, onClose }) => {
         exit={{ opacity: 0 }}
         className="fixed inset-0 z-50 flex justify-end"
       >
-        {/* Overlay — does NOT dismiss */}
         <div className="absolute inset-0 bg-foreground/90" />
 
-        {/* Panel */}
         <motion.div
           initial={{ x: '100%' }}
           animate={{ x: 0 }}
@@ -71,16 +91,34 @@ const DetailModal: React.FC<DetailModalProps> = ({ project, onClose }) => {
               </button>
             </div>
 
-            {/* Address */}
-            <div className="mb-6 flex items-start gap-3 rounded-lg border border-border p-4">
-              <MapPin className="mt-0.5 h-4 w-4 flex-shrink-0 text-muted-foreground" />
-              <div>
-                <p className="font-body text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                  대지위치
-                </p>
-                <p className="mt-1 font-data text-sm text-foreground">
-                  {project.address}
-                </p>
+            {/* Address with Map Links */}
+            <div className="mb-6 rounded-lg border border-border p-4">
+              <div className="flex items-start gap-3">
+                <MapPin className="mt-0.5 h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                <div className="flex-1">
+                  <p className="font-body text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                    대지위치
+                  </p>
+                  <p className="mt-1 font-data text-sm text-foreground">
+                    {project.address}
+                  </p>
+                </div>
+              </div>
+              <div className="mt-3 flex gap-2 pl-7">
+                <button
+                  onClick={openNaverMap}
+                  className="flex items-center gap-1.5 rounded-sm border border-border px-3 py-1.5 font-data text-[10px] text-muted-foreground transition-all hover:border-foreground hover:text-foreground"
+                >
+                  <MapPin className="h-3 w-3" />
+                  네이버지도
+                </button>
+                <button
+                  onClick={openGoogleMap}
+                  className="flex items-center gap-1.5 rounded-sm border border-border px-3 py-1.5 font-data text-[10px] text-muted-foreground transition-all hover:border-foreground hover:text-foreground"
+                >
+                  <MapPin className="h-3 w-3" />
+                  구글지도
+                </button>
               </div>
             </div>
 
@@ -100,15 +138,25 @@ const DetailModal: React.FC<DetailModalProps> = ({ project, onClose }) => {
                       {f.label}
                     </span>
                   </div>
-                  <p className="font-data text-sm text-foreground">
-                    {f.value || '정보 없음'}
-                  </p>
+                  {f.clickable ? (
+                    <button
+                      onClick={handleDeveloperClick}
+                      className="group flex items-center gap-1.5 font-data text-sm text-primary underline underline-offset-2 transition-all hover:text-primary/80"
+                    >
+                      {f.value || '정보 없음'}
+                      <Search className="h-3 w-3 opacity-0 transition-opacity group-hover:opacity-100" />
+                    </button>
+                  ) : (
+                    <p className="font-data text-sm text-foreground">
+                      {f.value || '정보 없음'}
+                    </p>
+                  )}
                 </motion.div>
               ))}
             </div>
 
             {/* Summary */}
-            {(project as any).summary && (
+            {project.summary && (
               <motion.div
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -119,7 +167,7 @@ const DetailModal: React.FC<DetailModalProps> = ({ project, onClose }) => {
                   프로젝트 요약
                 </p>
                 <p className="font-body text-sm text-foreground leading-relaxed">
-                  {(project as any).summary}
+                  {project.summary}
                 </p>
               </motion.div>
             )}
@@ -136,17 +184,6 @@ const DetailModal: React.FC<DetailModalProps> = ({ project, onClose }) => {
                   <Copy className="h-3.5 w-3.5" />
                 )}
                 {copySuccess ? 'COPIED' : '정보 전체 복사'}
-              </button>
-              <button
-                onClick={() =>
-                  window.open(
-                    `https://map.kakao.com/?q=${encodeURIComponent(project.address)}`,
-                    '_blank'
-                  )
-                }
-                className="flex h-11 w-11 items-center justify-center rounded-sm bg-accent text-foreground transition-all hover:bg-primary hover:text-primary-foreground"
-              >
-                <ExternalLink className="h-4 w-4" />
               </button>
             </div>
           </div>
