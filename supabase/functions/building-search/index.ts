@@ -29,40 +29,58 @@ async function searchWeb(query: string): Promise<string> {
     return "";
   }
 
+  // 다중 검색 쿼리로 더 넓은 범위 커버
+  const queries = [
+    `${query}`,
+    `${query} 주요 사업 실적 포트폴리오 프로젝트`,
+  ];
+
   try {
-    const response = await fetch("https://api.firecrawl.dev/v1/search", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${FIRECRAWL_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        query: `${query} 건설 프로젝트 시행사 시공사`,
-        limit: 10,
-        lang: "ko",
-        country: "kr",
-        scrapeOptions: {
-          formats: ["markdown"],
-          onlyMainContent: true,
+    const searchPromises = queries.map(async (q) => {
+      const response = await fetch("https://api.firecrawl.dev/v1/search", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${FIRECRAWL_API_KEY}`,
+          "Content-Type": "application/json",
         },
-      }),
+        body: JSON.stringify({
+          query: q,
+          limit: 8,
+          lang: "ko",
+          country: "kr",
+          scrapeOptions: {
+            formats: ["markdown"],
+            onlyMainContent: true,
+          },
+        }),
+      });
+
+      if (!response.ok) return [];
+      const data = await response.json();
+      return data?.data || data?.results || [];
     });
 
-    if (!response.ok) {
-      console.error("Firecrawl search error:", response.status);
-      return "";
+    const resultsArrays = await Promise.all(searchPromises);
+    const allResults: any[] = [];
+    for (const arr of resultsArrays) {
+      if (Array.isArray(arr)) allResults.push(...arr);
     }
 
-    const data = await response.json();
-    const results = data?.data || data?.results || [];
+    if (allResults.length === 0) return "";
 
-    if (!Array.isArray(results) || results.length === 0) return "";
+    // URL 기준 중복 제거
+    const seen = new Set<string>();
+    const unique = allResults.filter((r: any) => {
+      const key = r.url || r.title || "";
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
 
-    // 검색 결과를 텍스트로 요약
-    return results
-      .slice(0, 8)
+    return unique
+      .slice(0, 12)
       .map((r: any, i: number) =>
-        `[${i + 1}] ${r.title || ""}\n${r.description || r.snippet || ""}\n${r.markdown?.slice(0, 800) || ""}`
+        `[${i + 1}] ${r.title || ""}\n${r.description || r.snippet || ""}\n${r.markdown?.slice(0, 1000) || ""}`
       )
       .join("\n\n---\n\n");
   } catch (e) {
@@ -95,36 +113,38 @@ async function structureWithAI(query: string, webContext: string, apiKey: string
           {
             role: "system",
             content: `당신은 대한민국 건축물 및 건설 프로젝트 정보 전문가입니다.
-사용자의 검색 키워드를 분석하여 건설 프로젝트 정보를 구조화하세요.
+사용자의 검색 키워드를 분석하여 관련된 모든 건설 프로젝트 정보를 최대한 많이 찾아 구조화하세요.
 
-${hasWebContext ? "웹 검색 결과가 제공되면 우선 활용하고, 부족한 부분은 당신의 학습된 지식으로 보완하세요." : "웹 검색 결과가 없으므로, 당신의 학습된 지식을 최대한 활용하여 해당 프로젝트 정보를 제공하세요."}
+${hasWebContext ? "웹 검색 결과가 제공되면 우선 활용하고, 부족한 부분은 반드시 당신의 학습된 지식으로 보완하여 가능한 많은 프로젝트를 찾으세요." : "웹 검색 결과가 없으므로, 당신의 학습된 지식을 최대한 활용하여 해당 프로젝트 정보를 제공하세요."}
 
 추출 항목:
 - name: 프로젝트/건물 명칭
-- address: 위치/주소 (최대한 상세하게)
+- address: 위치/주소
 - developer: 시행사/건축주/조합
 - builder: 시공사/건설사
 - designer: 설계사
-- scale: 건물규모 (지상n층/지하n층)
-- purpose: 용도 (주거, 업무, 상업 등)
+- scale: 건물규모
+- purpose: 용도
 - area: 연면적 또는 대지면적
 - structure: 구조
-- status: 현황 (인허가전/착공예정/착공/준공 등)
+- status: 현황
 - date: 관련 일자
-- summary: 프로젝트 요약 설명 (2-3문장)
+- summary: 프로젝트 요약 (1-2문장)
 
-중요: 
-- 확인된 정보를 사용하되, 불확실한 항목은 "확인필요"로 표시하세요.
-- 재개발/재건축 사업도 포함하세요. 인허가 전이라도 알려진 정보를 모두 포함하세요.
-- 반드시 JSON 배열로 반환하세요. 관련 프로젝트가 여러 개면 모두 포함하세요.
-- 해당 키워드로 전혀 관련 프로젝트를 알 수 없는 경우에만 빈 배열 []을 반환하세요.
+중요 지시사항: 
+- 웹 검색 결과에 없더라도, 당신이 알고 있는 해당 시행사/시공사/키워드 관련 프로젝트를 모두 포함하세요.
+- 특정 회사 이름이 검색어에 포함되면, 그 회사의 알려진 모든 시행/시공 프로젝트를 나열하세요.
+- 준공, 착공, 인허가, 계획 단계 프로젝트를 모두 포함하세요.
+- 최소 5개 이상의 프로젝트를 찾도록 노력하세요.
+- 불확실한 항목은 "확인필요"로 표시하세요.
+- 반드시 JSON 배열로 반환하세요.
 
 결과 형식:
 [{"name":"...","address":"...","developer":"...","builder":"...","designer":"...","scale":"...","purpose":"...","area":"...","structure":"...","status":"...","date":"...","summary":"..."}]`,
           },
           {
             role: "user",
-            content: `"${query}" 프로젝트 정보를 찾아주세요.${contextBlock}`,
+            content: `"${query}" 관련 프로젝트 정보를 가능한 많이 찾아주세요. 웹 검색 결과뿐 아니라 당신이 알고 있는 정보도 모두 포함해주세요.${contextBlock}`,
           },
         ],
       }),
