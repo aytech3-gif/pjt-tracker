@@ -92,7 +92,7 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         from: "PJT-Tracker <onboarding@resend.dev>",
-        to: ["aytech3@gmail.com"],
+        to: [userEmail],
         subject: `[PJT-Tracker] 누적 검색결과 (${today}) - ${results.length}건`,
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
