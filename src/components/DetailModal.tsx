@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, Copy, CheckCircle,
-  User, Building2, Maximize2, Info, Database, Calendar, MapPin, Pencil, Search, Loader2
+  User, Building2, Maximize2, Info, Database, Calendar, MapPin, Pencil, Search, Loader2,
+  Newspaper, ExternalLink
 } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 import type { ProjectResult } from './ResultsList';
 
 interface DetailModalProps {
@@ -15,6 +17,31 @@ interface DetailModalProps {
 const DetailModal: React.FC<DetailModalProps> = ({ project, onClose, onSearchDeveloper }) => {
   const [copySuccess, setCopySuccess] = useState(false);
   const [devSearching, setDevSearching] = useState(false);
+  const [newsArticles, setNewsArticles] = useState<{ title: string; description: string; url: string }[]>([]);
+  const [newsLoading, setNewsLoading] = useState(false);
+
+  useEffect(() => {
+    if (!project) {
+      setNewsArticles([]);
+      return;
+    }
+    const fetchNews = async () => {
+      setNewsLoading(true);
+      try {
+        const { data, error } = await supabase.functions.invoke('news-search', {
+          body: { query: project.name },
+        });
+        if (!error && data?.success) {
+          setNewsArticles(data.articles || []);
+        }
+      } catch (e) {
+        console.error('News fetch error:', e);
+      } finally {
+        setNewsLoading(false);
+      }
+    };
+    fetchNews();
+  }, [project]);
 
   if (!project) return null;
 
@@ -171,6 +198,55 @@ const DetailModal: React.FC<DetailModalProps> = ({ project, onClose, onSearchDev
                 </p>
               </motion.div>
             )}
+
+            {/* Related News */}
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.7, duration: 0.3 }}
+              className="mt-6"
+            >
+              <div className="flex items-center gap-2 mb-3">
+                <Newspaper className="h-3.5 w-3.5 text-muted-foreground" />
+                <p className="font-body text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                  관련 뉴스
+                </p>
+              </div>
+              {newsLoading ? (
+                <div className="flex items-center gap-2 py-4">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                  <span className="font-data text-xs text-muted-foreground">뉴스 검색 중...</span>
+                </div>
+              ) : newsArticles.length > 0 ? (
+                <div className="grid gap-2">
+                  {newsArticles.map((article, idx) => (
+                    <a
+                      key={idx}
+                      href={article.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="group rounded-lg border border-border bg-accent/30 p-3.5 transition-all hover:border-foreground hover:bg-accent/60"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <p className="font-display text-xs text-foreground line-clamp-2 group-hover:underline">
+                            {article.title}
+                          </p>
+                          {article.description && (
+                            <p className="mt-1 font-data text-[10px] text-muted-foreground line-clamp-2">
+                              {article.description}
+                            </p>
+                          )}
+                        </div>
+                        <ExternalLink className="mt-0.5 h-3 w-3 flex-shrink-0 text-muted-foreground group-hover:text-foreground" />
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              ) : (
+                <p className="font-data text-xs text-muted-foreground py-2">관련 뉴스가 없습니다.</p>
+              )}
+            </motion.div>
 
             {/* Actions */}
             <div className="mt-8 flex gap-2">
