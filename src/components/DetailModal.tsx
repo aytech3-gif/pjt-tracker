@@ -12,6 +12,7 @@ interface NewsArticle {
   title: string;
   description: string;
   url: string;
+  date?: string;
 }
 
 interface DetailModalProps {
