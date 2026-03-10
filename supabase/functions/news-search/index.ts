@@ -6,37 +6,6 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-function parseRssItems(xml: string): { title: string; description: string; url: string; pubDate: string }[] {
-  const items: { title: string; description: string; url: string; pubDate: string }[] = [];
-  const itemRegex = /<item>([\s\S]*?)<\/item>/g;
-  let match;
-
-  while ((match = itemRegex.exec(xml)) !== null) {
-    const itemXml = match[1];
-
-    const titleMatch = itemXml.match(/<title><!\[CDATA\[([\s\S]*?)\]\]><\/title>/) ||
-                       itemXml.match(/<title>([\s\S]*?)<\/title>/);
-    const linkMatch = itemXml.match(/<link>([\s\S]*?)<\/link>/);
-    const pubDateMatch = itemXml.match(/<pubDate>([\s\S]*?)<\/pubDate>/);
-    const descMatch = itemXml.match(/<description><!\[CDATA\[([\s\S]*?)\]\]><\/description>/) ||
-                      itemXml.match(/<description>([\s\S]*?)<\/description>/);
-
-    const title = titleMatch?.[1]?.trim() || "";
-    const url = linkMatch?.[1]?.trim() || "";
-    const pubDate = pubDateMatch?.[1]?.trim() || "";
-
-    // description에서 HTML 태그 제거하고 출처 추출
-    const rawDesc = descMatch?.[1]?.trim() || "";
-    const cleanDesc = rawDesc.replace(/<[^>]*>/g, "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').trim();
-
-    if (title && url) {
-      items.push({ title, description: cleanDesc, url, pubDate });
-    }
-  }
-
-  return items;
-}
-
 function formatRelativeDate(pubDate: string): string {
   try {
     const date = new Date(pubDate);
@@ -52,6 +21,52 @@ function formatRelativeDate(pubDate: string): string {
   } catch {
     return "";
   }
+}
+
+/**
+ * Firecrawl 웹 검색으로 뉴스 기사 검색
+ */
+async function searchNewsWithFirecrawl(query: string) {
+  const FIRECRAWL_API_KEY = Deno.env.get("FIRECRAWL_API_KEY");
+  if (!FIRECRAWL_API_KEY) {
+    throw new Error("FIRECRAWL_API_KEY not configured");
+  }
+
+  const response = await fetch("https://api.firecrawl.dev/v1/search", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${FIRECRAWL_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      query: `${query} 뉴스 최신`,
+      limit: 8,
+      lang: "ko",
+      country: "kr",
+      tbs: "qdr:m", // 최근 1개월
+    }),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    console.error("Firecrawl search error:", response.status, errText);
+    throw new Error(`Firecrawl search failed (${response.status})`);
+  }
+
+  const data = await response.json();
+  const results = data?.data || data?.results || [];
+
+  if (!Array.isArray(results)) return [];
+
+  return results
+    .filter((r: any) => r.title && r.url)
+    .slice(0, 5)
+    .map((r: any) => ({
+      title: (r.title || "").replace(/<[^>]*>/g, "").trim(),
+      description: (r.description || r.snippet || "").replace(/<[^>]*>/g, "").trim(),
+      url: r.url,
+      date: r.publishedDate ? formatRelativeDate(r.publishedDate) : "",
+    }));
 }
 
 serve(async (req) => {
@@ -78,37 +93,10 @@ serve(async (req) => {
       );
     }
 
-    console.log("Google News search query:", query);
+    console.log("News search query:", query);
 
-    // Google News RSS 검색
-    const rssUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=ko&gl=KR&ceid=KR:ko`;
-
-    const response = await fetch(rssUrl, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (compatible; NewsBot/1.0)",
-        "Accept": "application/rss+xml, application/xml, text/xml",
-      },
-    });
-
-    if (!response.ok) {
-      console.error(`Google News RSS error: ${response.status}`);
-      return new Response(
-        JSON.stringify({ success: false, error: `News fetch failed (${response.status})` }),
-        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    const xml = await response.text();
-    const allItems = parseRssItems(xml);
-
-    const articles = allItems.slice(0, 5).map((item) => ({
-      title: item.title,
-      description: item.description || formatRelativeDate(item.pubDate),
-      url: item.url,
-      date: formatRelativeDate(item.pubDate),
-    }));
-
-    console.log(`Found ${articles.length} Google News articles`);
+    const articles = await searchNewsWithFirecrawl(query);
+    console.log(`Found ${articles.length} news articles via Firecrawl`);
 
     return new Response(
       JSON.stringify({ success: true, articles }),
