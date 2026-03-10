@@ -38,9 +38,13 @@ async function searchWeb(query: string): Promise<string> {
       },
       body: JSON.stringify({
         query: `${query} 건설 프로젝트 시행사 시공사 규모`,
-        limit: 5,
+        limit: 10,
         lang: "ko",
         country: "kr",
+        scrapeOptions: {
+          formats: ["markdown"],
+          onlyMainContent: true,
+        },
       }),
     });
 
@@ -57,7 +61,7 @@ async function searchWeb(query: string): Promise<string> {
     // 검색 결과를 텍스트로 요약
     return results
       .map((r: any, i: number) =>
-        `[검색결과 ${i + 1}] ${r.title || ""}\n${r.description || r.snippet || ""}\n${r.markdown?.slice(0, 800) || ""}`
+        `[검색결과 ${i + 1}] ${r.title || ""}\n${r.description || r.snippet || ""}\n${r.markdown?.slice(0, 1500) || ""}`
       )
       .join("\n\n---\n\n");
   } catch (e) {
