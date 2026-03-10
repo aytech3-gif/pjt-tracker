@@ -17,6 +17,31 @@ interface DetailModalProps {
 const DetailModal: React.FC<DetailModalProps> = ({ project, onClose, onSearchDeveloper }) => {
   const [copySuccess, setCopySuccess] = useState(false);
   const [devSearching, setDevSearching] = useState(false);
+  const [newsArticles, setNewsArticles] = useState<{ title: string; description: string; url: string }[]>([]);
+  const [newsLoading, setNewsLoading] = useState(false);
+
+  useEffect(() => {
+    if (!project) {
+      setNewsArticles([]);
+      return;
+    }
+    const fetchNews = async () => {
+      setNewsLoading(true);
+      try {
+        const { data, error } = await supabase.functions.invoke('news-search', {
+          body: { query: project.name },
+        });
+        if (!error && data?.success) {
+          setNewsArticles(data.articles || []);
+        }
+      } catch (e) {
+        console.error('News fetch error:', e);
+      } finally {
+        setNewsLoading(false);
+      }
+    };
+    fetchNews();
+  }, [project]);
 
   if (!project) return null;
 
