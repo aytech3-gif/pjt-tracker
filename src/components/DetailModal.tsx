@@ -199,6 +199,55 @@ const DetailModal: React.FC<DetailModalProps> = ({ project, onClose, onSearchDev
               </motion.div>
             )}
 
+            {/* Related News */}
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.7, duration: 0.3 }}
+              className="mt-6"
+            >
+              <div className="flex items-center gap-2 mb-3">
+                <Newspaper className="h-3.5 w-3.5 text-muted-foreground" />
+                <p className="font-body text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                  관련 뉴스
+                </p>
+              </div>
+              {newsLoading ? (
+                <div className="flex items-center gap-2 py-4">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                  <span className="font-data text-xs text-muted-foreground">뉴스 검색 중...</span>
+                </div>
+              ) : newsArticles.length > 0 ? (
+                <div className="grid gap-2">
+                  {newsArticles.map((article, idx) => (
+                    <a
+                      key={idx}
+                      href={article.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="group rounded-lg border border-border bg-accent/30 p-3.5 transition-all hover:border-foreground hover:bg-accent/60"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <p className="font-display text-xs text-foreground line-clamp-2 group-hover:underline">
+                            {article.title}
+                          </p>
+                          {article.description && (
+                            <p className="mt-1 font-data text-[10px] text-muted-foreground line-clamp-2">
+                              {article.description}
+                            </p>
+                          )}
+                        </div>
+                        <ExternalLink className="mt-0.5 h-3 w-3 flex-shrink-0 text-muted-foreground group-hover:text-foreground" />
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              ) : (
+                <p className="font-data text-xs text-muted-foreground py-2">관련 뉴스가 없습니다.</p>
+              )}
+            </motion.div>
+
             {/* Actions */}
             <div className="mt-8 flex gap-2">
               <button
