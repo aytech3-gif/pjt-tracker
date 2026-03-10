@@ -187,6 +187,7 @@ const Index = () => {
             hasSearched={hasSearched}
             onSelect={setSelectedPjt}
           />
+          <NewsSection query={searchQuery} hasResults={results.length > 0} />
           {results.length > 0 && (
             <div className="flex flex-col items-center gap-3 pb-8">
               <button
