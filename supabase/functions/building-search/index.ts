@@ -38,9 +38,13 @@ async function searchWeb(query: string): Promise<string> {
       },
       body: JSON.stringify({
         query: `${query} 건설 프로젝트 시행사 시공사`,
-        limit: 5,
+        limit: 10,
         lang: "ko",
         country: "kr",
+        scrapeOptions: {
+          formats: ["markdown"],
+          onlyMainContent: true,
+        },
       }),
     });
 
@@ -56,11 +60,11 @@ async function searchWeb(query: string): Promise<string> {
 
     // 검색 결과를 텍스트로 요약
     return results
-      .slice(0, 5)
+      .slice(0, 8)
       .map((r: any, i: number) =>
-        `[${i + 1}] ${r.title || ""}\n${r.description || r.snippet || ""}`
+        `[${i + 1}] ${r.title || ""}\n${r.description || r.snippet || ""}\n${r.markdown?.slice(0, 800) || ""}`
       )
-      .join("\n\n");
+      .join("\n\n---\n\n");
   } catch (e) {
     console.error("Web search error:", e);
     return "";
@@ -86,7 +90,7 @@ async function structureWithAI(query: string, webContext: string, apiKey: string
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash-lite",
+        model: "google/gemini-2.5-flash",
         messages: [
           {
             role: "system",
