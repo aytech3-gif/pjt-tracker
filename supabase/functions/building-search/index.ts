@@ -37,14 +37,10 @@ async function searchWeb(query: string): Promise<string> {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        query: `${query} 건설 프로젝트 시행사 시공사 규모`,
-        limit: 10,
+        query: `${query} 건설 프로젝트 시행사 시공사`,
+        limit: 5,
         lang: "ko",
         country: "kr",
-        scrapeOptions: {
-          formats: ["markdown"],
-          onlyMainContent: true,
-        },
       }),
     });
 
@@ -60,10 +56,11 @@ async function searchWeb(query: string): Promise<string> {
 
     // 검색 결과를 텍스트로 요약
     return results
+      .slice(0, 5)
       .map((r: any, i: number) =>
-        `[검색결과 ${i + 1}] ${r.title || ""}\n${r.description || r.snippet || ""}\n${r.markdown?.slice(0, 1500) || ""}`
+        `[${i + 1}] ${r.title || ""}\n${r.description || r.snippet || ""}`
       )
-      .join("\n\n---\n\n");
+      .join("\n\n");
   } catch (e) {
     console.error("Web search error:", e);
     return "";
