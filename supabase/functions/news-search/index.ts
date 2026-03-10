@@ -12,7 +12,17 @@ serve(async (req) => {
   }
 
   try {
-    const { query } = await req.json();
+    let body: Record<string, unknown>;
+    try {
+      body = await req.json();
+    } catch {
+      return new Response(
+        JSON.stringify({ success: false, error: "Invalid JSON body" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const query = typeof body.query === "string" ? body.query.trim() : "";
 
     if (!query) {
       return new Response(
@@ -23,6 +33,7 @@ serve(async (req) => {
 
     const apiKey = Deno.env.get("FIRECRAWL_API_KEY");
     if (!apiKey) {
+      console.error("FIRECRAWL_API_KEY not configured");
       return new Response(
         JSON.stringify({ success: false, error: "Firecrawl not configured" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -46,21 +57,37 @@ serve(async (req) => {
       }),
     });
 
-    const data = await response.json();
+    let data: Record<string, unknown>;
+    try {
+      data = await response.json();
+    } catch {
+      console.error("Failed to parse Firecrawl response");
+      return new Response(
+        JSON.stringify({ success: false, error: "Invalid response from search API" }),
+        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     if (!response.ok) {
-      console.error("Firecrawl search error:", data);
+      console.error("Firecrawl search error:", JSON.stringify(data));
       return new Response(
-        JSON.stringify({ success: false, error: data.error || "Search failed" }),
+        JSON.stringify({ success: false, error: (data.error as string) || `Search failed (${response.status})` }),
         { status: response.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const articles = (data.data || []).slice(0, 5).map((item: any) => ({
-      title: item.title || "제목 없음",
-      description: item.description || "",
-      url: item.url || "",
-    }));
+    const rawResults = Array.isArray(data.data) ? data.data : [];
+
+    const articles = rawResults
+      .filter((item: any) => item.url && typeof item.url === "string" && item.url.startsWith("http"))
+      .slice(0, 5)
+      .map((item: any) => ({
+        title: (typeof item.title === "string" && item.title) || "제목 없음",
+        description: (typeof item.description === "string" && item.description) || "",
+        url: item.url,
+      }));
+
+    console.log(`Found ${articles.length} valid news articles`);
 
     return new Response(
       JSON.stringify({ success: true, articles }),
@@ -68,8 +95,9 @@ serve(async (req) => {
     );
   } catch (error) {
     console.error("News search error:", error);
+    const message = error instanceof Error ? error.message : "Failed to search news";
     return new Response(
-      JSON.stringify({ success: false, error: "Failed to search news" }),
+      JSON.stringify({ success: false, error: message }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
