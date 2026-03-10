@@ -48,12 +48,12 @@ async function searchWeb(query: string): Promise<string> {
         },
         body: JSON.stringify({
           query: `${query} 시행 시공 프로젝트 사업실적`,
-          limit: 10,
+          limit: 5,
           lang: "ko",
           country: "kr",
         }),
       },
-      12000
+      8000
     );
 
     if (!response.ok) {
@@ -76,7 +76,7 @@ async function searchWeb(query: string): Promise<string> {
     });
 
     return unique
-      .slice(0, 10)
+      .slice(0, 5)
       .map(
         (r: any, i: number) =>
           `[${i + 1}] ${r.title || ""}\n${r.description || r.snippet || ""}`
@@ -115,7 +115,7 @@ async function structureWithAI(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: "google/gemini-2.5-flash-lite",
         messages: [
           {
             role: "system",
@@ -142,7 +142,7 @@ ${hasWebContext ? "웹 검색 결과를 우선 활용하되, 반드시 당신의
         ],
       }),
     },
-    30000
+    20000
   );
 
   if (!response.ok) {
@@ -173,7 +173,7 @@ async function searchPublicData(query: string) {
   const url = `http://apis.data.go.kr/1613000/ArchPmsService_v2/getApBasisOulnInfo?serviceKey=${serviceKey}&numOfRows=10&pageNo=1&type=json&platPlc=${encodedQuery}`;
 
   try {
-    const response = await fetchWithTimeout(url, {}, 8000);
+    const response = await fetchWithTimeout(url, {}, 5000);
     if (!response.ok) return [];
 
     const data = await response.json();
