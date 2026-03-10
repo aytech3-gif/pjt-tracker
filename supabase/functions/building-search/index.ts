@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -184,7 +185,7 @@ serve(async (req) => {
   }
 
   try {
-    const { query } = await req.json();
+    const { query, userEmail } = await req.json();
     if (!query || typeof query !== "string") {
       return new Response(
         JSON.stringify({ error: "query is required" }),
@@ -233,6 +234,36 @@ serve(async (req) => {
       if (!seen.has(key)) {
         seen.add(key);
         merged.push(item);
+      }
+    }
+
+    // Save results to DB for accumulation
+    if (userEmail && merged.length > 0) {
+      try {
+        const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+        const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+        const sb = createClient(supabaseUrl, supabaseKey);
+
+        const rows = merged.map((item: any) => ({
+          user_email: userEmail,
+          search_query: query,
+          project_name: item.name || "",
+          project_address: item.address || "",
+          developer: item.developer || "",
+          builder: item.builder || "",
+          designer: item.designer || "",
+          scale: item.scale || "",
+          purpose: item.purpose || "",
+          area: item.area || "",
+          status: item.status || "",
+          date: item.date || "",
+          source: item.source || "",
+          summary: item.summary || "",
+        }));
+
+        await sb.from("search_results").insert(rows);
+      } catch (saveErr) {
+        console.error("Failed to save results:", saveErr);
       }
     }
 
