@@ -278,36 +278,43 @@ const DetailModal: React.FC<DetailModalProps> = ({ project, onClose, onSearchDev
                   </div>
                 ) : newsArticles.length > 0 ? (
                   <div className="grid gap-2">
-                    {newsArticles.map((article, idx) => (
-                      <a
-                        key={`${article.url}-${idx}`}
-                        href={article.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="group rounded-lg border border-border bg-accent/30 p-3.5 transition-all hover:border-foreground hover:bg-accent/60"
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0 flex-1">
-                            <p className="font-display text-xs text-foreground line-clamp-2 group-hover:underline">
-                              {article.title}
-                            </p>
-                            <div className="mt-1 flex items-center gap-2">
-                              {article.date && (
-                                <span className="font-data text-[10px] text-primary">
-                                  {article.date}
-                                </span>
-                              )}
-                              {article.description && (
-                                <span className="font-data text-[10px] text-muted-foreground line-clamp-1">
-                                  {article.description}
-                                </span>
-                              )}
+                    {newsArticles.map((article, idx) => {
+                      const hasUrl = article.url && article.url.startsWith('http');
+                      const linkUrl = hasUrl
+                        ? article.url
+                        : `https://www.google.com/search?q=${encodeURIComponent(article.title)}&tbm=nws`;
+
+                      return (
+                        <a
+                          key={`news-${idx}`}
+                          href={linkUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="group rounded-lg border border-border bg-accent/30 p-3.5 transition-all hover:border-foreground hover:bg-accent/60"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0 flex-1">
+                              <p className="font-display text-xs text-foreground line-clamp-2 group-hover:underline">
+                                {article.title}
+                              </p>
+                              <div className="mt-1 flex items-center gap-2">
+                                {article.date && (
+                                  <span className="font-data text-[10px] text-primary">
+                                    {article.date}
+                                  </span>
+                                )}
+                                {article.description && (
+                                  <span className="font-data text-[10px] text-muted-foreground line-clamp-1">
+                                    {article.description}
+                                  </span>
+                                )}
+                              </div>
                             </div>
+                            <ExternalLink className="mt-0.5 h-3 w-3 flex-shrink-0 text-muted-foreground group-hover:text-foreground" />
                           </div>
-                          <ExternalLink className="mt-0.5 h-3 w-3 flex-shrink-0 text-muted-foreground group-hover:text-foreground" />
-                        </div>
-                      </a>
-                    ))}
+                        </a>
+                      );
+                    })}
                   </div>
                 ) : (
                   <p className="font-data text-xs text-muted-foreground py-2">관련 뉴스가 없습니다.</p>

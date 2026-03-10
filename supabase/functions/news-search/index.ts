@@ -30,17 +30,68 @@ serve(async (req) => {
       );
     }
 
+    console.log("News search query:", query);
+
+    const FIRECRAWL_API_KEY = Deno.env.get("FIRECRAWL_API_KEY");
+
+    // Firecrawl로 실제 뉴스 검색 (실제 URL 포함)
+    if (FIRECRAWL_API_KEY) {
+      try {
+        const response = await fetch("https://api.firecrawl.dev/v1/search", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${FIRECRAWL_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            query: `${query} 뉴스 최신`,
+            limit: 8,
+            lang: "ko",
+            country: "kr",
+            tbs: "qdr:y", // 최근 1년 이내
+          }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const results = data?.data || data?.results || [];
+
+          if (Array.isArray(results) && results.length > 0) {
+            const articles = results
+              .filter((r: any) => r.url && r.title)
+              .map((r: any) => ({
+                title: r.title || "",
+                description: r.description || r.snippet || "",
+                url: r.url || "",
+                date: extractDate(r),
+              }))
+              .slice(0, 5);
+
+            console.log(`Found ${articles.length} news articles via Firecrawl`);
+
+            return new Response(
+              JSON.stringify({ success: true, articles }),
+              { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+          }
+        } else {
+          console.error("Firecrawl news search error:", response.status);
+        }
+      } catch (e) {
+        console.error("Firecrawl news error:", e);
+      }
+    }
+
+    // Firecrawl 실패 시 AI 폴백 (Google 검색 링크 생성)
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
       return new Response(
-        JSON.stringify({ success: false, error: "LOVABLE_API_KEY not configured" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ success: true, articles: [] }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    console.log("News search query:", query);
-
-    const response = await fetch(
+    const aiResponse = await fetch(
       "https://ai.gateway.lovable.dev/v1/chat/completions",
       {
         method: "POST",
@@ -54,37 +105,35 @@ serve(async (req) => {
             {
               role: "system",
               content: `당신은 대한민국 건설/부동산 뉴스 전문가입니다.
-사용자의 검색 키워드에 대해 최근 관련 뉴스 기사 정보를 제공하세요.
+사용자의 검색 키워드에 대해 최근 실제 보도된 뉴스 기사 정보를 제공하세요.
 
 반드시 아래 JSON 배열 형식으로만 응답하세요:
-[{"title":"기사 제목","description":"기사 요약 1-2문장","url":"","date":"날짜 또는 시기"}]
+[{"title":"실제 기사 제목","description":"기사 요약 1-2문장","date":"YYYY-MM 또는 YYYY"}]
 
 규칙:
 - 최대 5개 기사를 반환
-- 최신 뉴스를 우선으로
-- 실제로 보도된 내용 기반으로 작성
-- url은 빈 문자열로 두세요
+- 가장 최근 뉴스를 우선으로
+- 실제로 보도된 내용만 작성 (환각 금지)
+- 날짜는 가능한 정확하게
 - 관련 뉴스가 없으면 빈 배열 []을 반환`,
             },
             {
               role: "user",
-              content: `"${query}" 관련 최신 뉴스를 찾아주세요.`,
+              content: `"${query}" 관련 최근 뉴스를 찾아주세요.`,
             },
           ],
         }),
       }
     );
 
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error("AI gateway error:", response.status, errText);
+    if (!aiResponse.ok) {
       return new Response(
-        JSON.stringify({ success: false, error: "AI 뉴스 검색 실패" }),
-        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ success: true, articles: [] }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const result = await response.json();
+    const result = await aiResponse.json();
     const content = result.choices?.[0]?.message?.content || "[]";
 
     let articles: any[] = [];
@@ -95,7 +144,13 @@ serve(async (req) => {
       articles = [];
     }
 
-    console.log(`Found ${articles.length} news articles via AI`);
+    // AI 결과에는 URL이 없으므로 Google 뉴스 검색 링크 생성
+    articles = articles.map((a: any) => ({
+      ...a,
+      url: `https://www.google.com/search?q=${encodeURIComponent(a.title + " " + query)}&tbm=nws`,
+    }));
+
+    console.log(`Found ${articles.length} news articles via AI fallback`);
 
     return new Response(
       JSON.stringify({ success: true, articles }),
@@ -110,3 +165,11 @@ serve(async (req) => {
     );
   }
 });
+
+function extractDate(result: any): string {
+  // Try to extract date from metadata or content
+  if (result.publishedDate) return result.publishedDate;
+  if (result.metadata?.publishedTime) return result.metadata.publishedTime.slice(0, 10);
+  if (result.metadata?.date) return result.metadata.date;
+  return "";
+}
