@@ -18,7 +18,61 @@ function safeJsonParse(str: string) {
   }
 }
 
-async function searchWithAI(query: string, apiKey: string) {
+/**
+ * 1단계: Firecrawl 웹 검색으로 실시간 정보 수집
+ */
+async function searchWeb(query: string): Promise<string> {
+  const FIRECRAWL_API_KEY = Deno.env.get("FIRECRAWL_API_KEY");
+  if (!FIRECRAWL_API_KEY) {
+    console.warn("FIRECRAWL_API_KEY not configured, skipping web search");
+    return "";
+  }
+
+  try {
+    const response = await fetch("https://api.firecrawl.dev/v1/search", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${FIRECRAWL_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        query: `${query} 건설 프로젝트 시행사 시공사 규모`,
+        limit: 5,
+        lang: "ko",
+        country: "kr",
+      }),
+    });
+
+    if (!response.ok) {
+      console.error("Firecrawl search error:", response.status);
+      return "";
+    }
+
+    const data = await response.json();
+    const results = data?.data || data?.results || [];
+
+    if (!Array.isArray(results) || results.length === 0) return "";
+
+    // 검색 결과를 텍스트로 요약
+    return results
+      .map((r: any, i: number) =>
+        `[검색결과 ${i + 1}] ${r.title || ""}\n${r.description || r.snippet || ""}\n${r.markdown?.slice(0, 800) || ""}`
+      )
+      .join("\n\n---\n\n");
+  } catch (e) {
+    console.error("Web search error:", e);
+    return "";
+  }
+}
+
+/**
+ * 2단계: AI가 웹 검색 결과를 구조화된 프로젝트 정보로 변환
+ */
+async function structureWithAI(query: string, webContext: string, apiKey: string) {
+  const contextBlock = webContext
+    ? `\n\n아래는 "${query}"에 대한 실시간 웹 검색 결과입니다. 이 정보를 분석하여 건설 프로젝트 정보를 추출하세요:\n\n${webContext}`
+    : "";
+
   const response = await fetch(
     "https://ai.gateway.lovable.dev/v1/chat/completions",
     {
@@ -33,23 +87,36 @@ async function searchWithAI(query: string, apiKey: string) {
           {
             role: "system",
             content: `당신은 대한민국 건축물 및 건설 프로젝트 정보 전문가입니다.
-사용자의 검색 키워드에 대해 건축물대장 기본개요 정보를 기반으로 관련 건설 프로젝트 정보를 제공하세요.
+사용자의 검색 키워드와 제공된 웹 검색 결과를 분석하여 건설 프로젝트 정보를 구조화하세요.
 
-검색 및 추출 항목:
-1. bldNm (건물명칭), platPlc (대지위치/주소)
-2. archArea (건축면적), totArea (연면적)
-3. strctCdNm (구조명칭), mainPurpsCdNm (주용도명칭)
-4. grndFlrCnt (지상층수), ugndFlrCnt (지하층수)
-5. pmsDay (허가일), stcnsDay (착공일), useAprvDay (사용승인일)
-6. 시행사(건축주), 시공사(건설사), 설계사 정보
+추출 항목:
+- name: 프로젝트/건물 명칭
+- address: 위치/주소 (최대한 상세하게)
+- developer: 시행사/건축주/조합
+- builder: 시공사/건설사
+- designer: 설계사
+- scale: 건물규모 (지상n층/지하n층)
+- purpose: 용도 (주거, 업무, 상업 등)
+- area: 연면적 또는 대지면적
+- structure: 구조
+- status: 현황 (인허가전/착공예정/착공/준공 등)
+- date: 관련 일자
+- summary: 프로젝트 요약 설명 (2-3문장)
 
-반드시 아래 키를 가진 JSON 배열로 반환하세요:
-[{"name":"건물명","address":"주소","developer":"시행사","builder":"시공사","designer":"설계사","scale":"지상n층/지하n층","purpose":"용도","area":"연면적","structure":"구조","status":"착공/준공/예정","date":"YYYY-MM-DD","permitDate":"허가일","startDate":"착공일","approvalDate":"사용승인일"}]
-검색 결과가 없으면 빈 배열 []을 반환하세요. JSON만 반환하고 다른 텍스트는 포함하지 마세요.`,
+중요: 
+- 웹 검색 결과에서 확인된 정보만 사용하세요.
+- 정보가 불확실하면 "미정" 또는 "확인필요"로 표시하세요.
+- 재개발/재건축 사업도 포함하세요. 아직 인허가 전이라도 알려진 정보를 모두 포함하세요.
+- 반드시 JSON 배열로 반환하세요. 관련 프로젝트가 여러 개면 모두 포함하세요.
+
+결과 형식:
+[{"name":"...","address":"...","developer":"...","builder":"...","designer":"...","scale":"...","purpose":"...","area":"...","structure":"...","status":"...","date":"...","summary":"..."}]
+
+검색 결과가 전혀 관련 없으면 빈 배열 []을 반환하세요.`,
           },
           {
             role: "user",
-            content: query,
+            content: `"${query}" 프로젝트 정보를 찾아주세요.${contextBlock}`,
           },
         ],
       }),
@@ -62,7 +129,7 @@ async function searchWithAI(query: string, apiKey: string) {
     if (response.status === 429 || response.status === 402) {
       throw new Error(`AI_${response.status}`);
     }
-    throw new Error("AI search failed");
+    throw new Error("AI structuring failed");
   }
 
   const result = await response.json();
@@ -70,9 +137,10 @@ async function searchWithAI(query: string, apiKey: string) {
   return safeJsonParse(content) || [];
 }
 
+/**
+ * 3단계: 공공데이터포털 건축물대장 검색
+ */
 async function searchPublicData(query: string) {
-  // 공공데이터포털 건축물대장 기본개요 API
-  // This API requires sigunguCd/bjdongCd, so we try a keyword-based approach
   const encodedQuery = encodeURIComponent(query);
   const url = `http://apis.data.go.kr/1613000/ArchPmsService_v2/getApBasisOulnInfo?serviceKey=${PUBLIC_DATA_SERVICE_KEY}&numOfRows=10&pageNo=1&type=json&platPlc=${encodedQuery}`;
 
@@ -132,30 +200,32 @@ serve(async (req) => {
       );
     }
 
-    // Run both searches in parallel
-    const [aiResults, publicResults] = await Promise.allSettled([
-      searchWithAI(query, LOVABLE_API_KEY),
+    // 1단계: 웹 검색 + 공공데이터 병렬 실행
+    const [webContext, publicResults] = await Promise.allSettled([
+      searchWeb(query),
       searchPublicData(query),
     ]);
 
-    const ai = aiResults.status === "fulfilled" ? aiResults.value : [];
+    const webText = webContext.status === "fulfilled" ? webContext.value : "";
     const pub = publicResults.status === "fulfilled" ? publicResults.value : [];
 
-    // Tag AI results
-    const taggedAI = (Array.isArray(ai) ? ai : []).map((item: any, idx: number) => ({
+    // 2단계: AI가 웹 검색 결과를 구조화
+    const aiStructured = await structureWithAI(query, webText, LOVABLE_API_KEY);
+
+    // Tag results
+    const taggedAI = (Array.isArray(aiStructured) ? aiStructured : []).map((item: any, idx: number) => ({
       ...item,
-      id: `ai-${idx}-${Date.now()}`,
-      source: "🤖 AI Intelligence",
+      id: `web-${idx}-${Date.now()}`,
+      source: webText ? "🌐 웹 검색 + AI" : "🤖 AI Intelligence",
     }));
 
-    // Tag public data results
     const taggedPub = (Array.isArray(pub) ? pub : []).map((item: any, idx: number) => ({
       ...item,
       id: `pub-${idx}-${Date.now()}`,
       source: "🏛️ 공공데이터포털",
     }));
 
-    // Merge: AI results first, then public data (deduplicate by name+address)
+    // Merge with deduplication
     const seen = new Set<string>();
     const merged: any[] = [];
     for (const item of [...taggedAI, ...taggedPub]) {
