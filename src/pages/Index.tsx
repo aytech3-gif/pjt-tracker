@@ -7,7 +7,7 @@ import SearchBar from '../components/SearchBar';
 import ResultsList, { type ProjectResult } from '../components/ResultsList';
 import DetailModal from '../components/DetailModal';
 import AdminPanel from '../components/AdminPanel';
-import NewsSection from '../components/NewsSection';
+
 import { Mail, Loader2 } from 'lucide-react';
 
 const APP_ID = 'lge-pjt-tracker-v1';
