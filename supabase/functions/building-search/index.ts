@@ -76,7 +76,7 @@ async function searchWeb(query: string): Promise<string> {
     });
 
     return unique
-      .slice(0, 10)
+      .slice(0, 5)
       .map(
         (r: any, i: number) =>
           `[${i + 1}] ${r.title || ""}\n${r.description || r.snippet || ""}`
