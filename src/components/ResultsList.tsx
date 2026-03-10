@@ -7,12 +7,14 @@ export interface ProjectResult {
   address: string;
   developer: string;
   builder: string;
+  designer: string;
   scale: string;
   purpose: string;
   area: string;
   status: string;
   date: string;
   source: string;
+  summary?: string;
 }
 
 interface ResultsListProps {

@@ -41,6 +41,28 @@ const fetchBuildingIntelligence = async (query: string): Promise<ProjectResult[]
   return data?.results || [];
 };
 
+const downloadExcel = (results: ProjectResult[], query: string) => {
+  if (results.length === 0) return;
+
+  const headers = ['프로젝트명', '주소', '시행사', '시공사', '설계사', '규모', '용도', '연면적', '현황', '일자', '출처'];
+  const rows = results.map(r => [
+    r.name, r.address, r.developer, r.builder, r.designer || '', r.scale, r.purpose, r.area, r.status, r.date, r.source
+  ]);
+
+  const csvContent = '\uFEFF' + [headers, ...rows].map(row =>
+    row.map(cell => `"${(cell || '').replace(/"/g, '""')}"`).join(',')
+  ).join('\n');
+
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `PJT-Tracker_${query}_${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast.success('Excel(CSV) 파일이 다운로드되었습니다.');
+};
+
 const Index = () => {
   const [user, setUser] = useState<UserSession | null>(null);
   const [activeTab, setActiveTab] = useState<'search' | 'admin'>('search');
@@ -76,10 +98,11 @@ const Index = () => {
     setUser(null);
   };
 
-  const handleSearch = async () => {
-    const trimmed = searchQuery.trim();
+  const performSearch = async (query: string) => {
+    const trimmed = query.trim();
     if (!trimmed || isSearching) return;
 
+    setSearchQuery(trimmed);
     setIsSearching(true);
     setHasSearched(true);
     setResults([]);
@@ -92,6 +115,13 @@ const Index = () => {
     const intelResults = await fetchBuildingIntelligence(trimmed);
     setResults(intelResults);
     setIsSearching(false);
+  };
+
+  const handleSearch = () => performSearch(searchQuery);
+
+  const handleSearchDeveloper = (developer: string) => {
+    toast.info(`"${developer}" 시행사 프로젝트를 검색합니다...`);
+    performSearch(`${developer} 시행 프로젝트`);
   };
 
   if (!user) {
@@ -123,10 +153,24 @@ const Index = () => {
             hasSearched={hasSearched}
             onSelect={setSelectedPjt}
           />
+          {results.length > 0 && (
+            <div className="flex justify-center pb-8">
+              <button
+                onClick={() => downloadExcel(results, searchQuery)}
+                className="flex items-center gap-2 rounded-sm border border-border px-5 py-2.5 font-data text-xs text-muted-foreground transition-all hover:border-foreground hover:text-foreground"
+              >
+                📊 검색결과 Excel 다운로드
+              </button>
+            </div>
+          )}
         </>
       )}
 
-      <DetailModal project={selectedPjt} onClose={() => setSelectedPjt(null)} />
+      <DetailModal
+        project={selectedPjt}
+        onClose={() => setSelectedPjt(null)}
+        onSearchDeveloper={handleSearchDeveloper}
+      />
     </div>
   );
 };
