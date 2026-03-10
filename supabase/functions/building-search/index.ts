@@ -38,9 +38,13 @@ async function searchWeb(query: string): Promise<string> {
       },
       body: JSON.stringify({
         query: `${query} 건설 프로젝트 시행사 시공사`,
-        limit: 5,
+        limit: 10,
         lang: "ko",
         country: "kr",
+        scrapeOptions: {
+          formats: ["markdown"],
+          onlyMainContent: true,
+        },
       }),
     });
 
