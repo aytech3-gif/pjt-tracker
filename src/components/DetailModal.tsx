@@ -107,6 +107,23 @@ const DetailModal: React.FC<DetailModalProps> = ({ project, onClose }) => {
               ))}
             </div>
 
+            {/* Summary */}
+            {(project as any).summary && (
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.6, duration: 0.3 }}
+                className="mt-6 rounded-lg border border-border bg-accent/50 p-4"
+              >
+                <p className="font-body text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">
+                  프로젝트 요약
+                </p>
+                <p className="font-body text-sm text-foreground leading-relaxed">
+                  {(project as any).summary}
+                </p>
+              </motion.div>
+            )}
+
             {/* Actions */}
             <div className="mt-8 flex gap-2">
               <button
