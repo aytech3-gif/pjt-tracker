@@ -63,20 +63,49 @@ const parseCSVRow = (row: string): string[] => {
 };
 
 const AdminPanel: React.FC<AdminPanelProps> = ({ searchHistory, onDataUpload, localDbCount }) => {
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const readFileWithEncoding = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      // Try UTF-8 first
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const text = ev.target?.result as string;
+        // If garbled (contains replacement chars or mojibake patterns), retry with EUC-KR
+        if (text && (text.includes('�') || /[\uFFFD]/.test(text) || /^[^\x00-\x7F]{2,}[,\r\n]/.test(text) === false && /[\x80-\xFF]/.test(text.slice(0, 200)))) {
+          const readerKR = new FileReader();
+          readerKR.onload = (ev2) => resolve(ev2.target?.result as string);
+          readerKR.onerror = reject;
+          readerKR.readAsText(file, 'euc-kr');
+        } else {
+          resolve(text);
+        }
+      };
+      reader.onerror = reject;
+      reader.readAsText(file, 'UTF-8');
+    });
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      try {
-        const parsed = parseCSV(ev.target?.result as string);
-        onDataUpload(parsed);
-        toast.success(`로컬 DB에 ${parsed.length.toLocaleString()}건의 기준 데이터를 동기화했습니다.`);
-      } catch {
-        toast.error('CSV 처리 실패');
+    try {
+      const text = await readFileWithEncoding(file);
+      const parsed = parseCSV(text);
+      if (parsed.length === 0) {
+        toast.error('데이터를 파싱할 수 없습니다. 파일 형식을 확인하세요.');
+        return;
       }
-    };
-    reader.readAsText(file);
+      // Validate: check if expected columns exist
+      const sample = parsed[0];
+      const expectedCols = ['건물명', '시도', '주용도'];
+      const foundCols = expectedCols.filter(c => c in sample);
+      if (foundCols.length === 0) {
+        toast.warning('컬럼명이 인식되지 않습니다. 인코딩 문제일 수 있습니다.');
+      }
+      onDataUpload(parsed);
+      toast.success(`로컬 DB에 ${parsed.length.toLocaleString()}건의 기준 데이터를 동기화했습니다. (${foundCols.length}/${expectedCols.length} 컬럼 확인)`);
+    } catch {
+      toast.error('CSV 처리 실패');
+    }
   };
 
   return (
