@@ -6,35 +6,35 @@
 
 @layer base {
   :root {
-    --background: 40 4% 85%; /* Cool Gray #D9D9D6 */
-    --foreground: 0 0% 15%; /* Charcoal #262626 */
+    --background: 210 40% 98%; /* slate-50 */
+    --foreground: 215 28% 17%; /* slate-800 */
 
     --card: 0 0% 100%;
-    --card-foreground: 0 0% 15%;
+    --card-foreground: 215 28% 17%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 15%;
+    --popover-foreground: 215 28% 17%;
 
-    --primary: 345 100% 32%; /* LG Red #A50034 */
+    --primary: 348 100% 43%; /* #DA0033 LG Red */
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 0 0% 100%;
-    --secondary-foreground: 0 0% 15%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 215 28% 17%;
 
-    --muted: 0 1% 74%; /* Cool Gray 4 #BDBBBC */
-    --muted-foreground: 0 1% 55%;
+    --muted: 215 16% 47%;
+    --muted-foreground: 215 16% 57%;
 
-    --accent: 40 4% 90%;
-    --accent-foreground: 0 0% 15%;
+    --accent: 210 40% 96%;
+    --accent-foreground: 215 28% 17%;
 
-    --destructive: 345 100% 32%;
+    --destructive: 348 100% 43%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 0 1% 74%;
-    --input: 0 1% 74%;
-    --ring: 345 100% 32%;
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 348 100% 43%;
 
-    --radius: 6px;
+    --radius: 1rem;
 
     --font-display: 'Archivo Black', 'Archivo', sans-serif;
     --font-body: 'Archivo', sans-serif;
@@ -82,5 +82,12 @@
   }
   .custom-scrollbar::-webkit-scrollbar-track {
     background: transparent;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
   }
 }

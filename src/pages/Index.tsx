@@ -1,16 +1,16 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { Mail, Loader2 } from 'lucide-react';
 import LoginScreen from '../components/LoginScreen';
 import AppHeader from '../components/AppHeader';
 import SearchBar from '../components/SearchBar';
 import ResultsList, { type ProjectResult } from '../components/ResultsList';
 import DetailModal from '../components/DetailModal';
 import AdminPanel from '../components/AdminPanel';
+import { type LocalDBItem, loadLocalDB, saveLocalDB, buildSearchIndex, searchLocalDB } from '@/lib/local-db';
 
-import { Mail, Loader2 } from 'lucide-react';
-
-const APP_ID = 'lge-pjt-tracker-v1';
+const APP_ID = 'lge-pjt-tracker-v3';
 const ADMIN_EMAIL = 'jh5.park@lge.com';
 
 interface UserSession {
@@ -28,33 +28,27 @@ const fetchBuildingIntelligence = async (query: string, userEmail: string): Prom
   const { data, error } = await supabase.functions.invoke('building-search', {
     body: { query, userEmail },
   });
-
   if (error) {
     console.error('Edge function error:', error);
     toast.error('검색 중 오류가 발생했습니다.');
     return [];
   }
-
   if (data?.error) {
     toast.error(data.error);
     return [];
   }
-
   return data?.results || [];
 };
 
 const downloadExcel = (results: ProjectResult[], query: string) => {
   if (results.length === 0) return;
-
   const headers = ['프로젝트명', '주소', '시행사', '시공사', '설계사', '규모', '용도', '연면적', '현황', '일자', '출처'];
   const rows = results.map(r => [
-    r.name, r.address, r.developer, r.builder, r.designer || '', r.scale, r.purpose, r.area, r.status, r.date, r.source
+    r.name, r.address, r.developer, r.builder, r.designer || '', r.scale, r.purpose, r.area, r.status, r.date, r.source,
   ]);
-
   const csvContent = '\uFEFF' + [headers, ...rows].map(row =>
     row.map(cell => `"${(cell || '').replace(/"/g, '""')}"`).join(',')
   ).join('\n');
-
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -75,20 +69,19 @@ const Index = () => {
   const [selectedPjt, setSelectedPjt] = useState<ProjectResult | null>(null);
   const [searchHistory, setSearchHistory] = useState<SearchLog[]>([]);
   const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [localDB, setLocalDB] = useState<LocalDBItem[]>([]);
 
   useEffect(() => {
     const savedUser = localStorage.getItem(`${APP_ID}_session`);
     if (savedUser) {
-      try {
-        setUser(JSON.parse(savedUser));
-      } catch {
-        localStorage.removeItem(`${APP_ID}_session`);
-      }
+      try { setUser(JSON.parse(savedUser)); } catch { localStorage.removeItem(`${APP_ID}_session`); }
     }
     const savedHistory = localStorage.getItem(`${APP_ID}_history`);
     if (savedHistory) setSearchHistory(JSON.parse(savedHistory));
+    setLocalDB(loadLocalDB());
   }, []);
 
+  const indexedData = useMemo(() => buildSearchIndex(localDB), [localDB]);
   const isAdmin = useMemo(() => user?.email === ADMIN_EMAIL, [user]);
 
   const handleLogin = (u: UserSession) => {
@@ -101,7 +94,12 @@ const Index = () => {
     setUser(null);
   };
 
-  const performSearch = async (query: string) => {
+  const handleDataUpload = (data: LocalDBItem[]) => {
+    setLocalDB(data);
+    saveLocalDB(data);
+  };
+
+  const performSearch = useCallback(async (query: string) => {
     const trimmed = query.trim();
     if (!trimmed || isSearching) return;
 
@@ -115,10 +113,34 @@ const Index = () => {
     setSearchHistory(updatedHistory);
     localStorage.setItem(`${APP_ID}_history`, JSON.stringify(updatedHistory));
 
-    const intelResults = await fetchBuildingIntelligence(trimmed, user?.email || '');
-    setResults(intelResults);
+    // 1. Local DB search (instant)
+    const localResults = searchLocalDB(indexedData, trimmed);
+
+    // 2. Edge function search (async)
+    const edgeResults = await fetchBuildingIntelligence(trimmed, user?.email || '');
+
+    // Merge with deduplication
+    const seen = new Set<string>();
+    const merged: ProjectResult[] = [];
+    for (const item of [...localResults, ...edgeResults]) {
+      const key = `${item.name}_${item.address}`.toLowerCase().replace(/\s/g, '');
+      if (!seen.has(key)) {
+        seen.add(key);
+        merged.push(item);
+      }
+    }
+
+    setResults(merged);
     setIsSearching(false);
-  };
+
+    if (merged.length === 0) {
+      toast.info('검색된 프로젝트가 없습니다.');
+    } else if (localResults.length > 0 && edgeResults.length === 0) {
+      toast.info('내부 DB에서만 검색되었습니다.');
+    } else if (localResults.length === 0 && edgeResults.length > 0) {
+      toast.info('내부 DB에는 없으나, AI 검색 결과를 가져왔습니다.');
+    }
+  }, [isSearching, searchHistory, user, indexedData]);
 
   const handleSearch = () => performSearch(searchQuery);
 
@@ -129,89 +151,78 @@ const Index = () => {
 
   const handleSendEmail = async () => {
     if (!user?.email || isSendingEmail) return;
-
     setIsSendingEmail(true);
     toast.info('누적 검색결과를 이메일로 전송 중...');
-
     try {
       const { data, error } = await supabase.functions.invoke('send-results-email', {
         body: { userEmail: user.email },
       });
-
-      if (error) {
-        console.error('Email send error:', error);
-        toast.error('이메일 전송에 실패했습니다.');
-        return;
-      }
-
-      if (data?.error) {
-        toast.error(data.error);
-        return;
-      }
-
+      if (error) { toast.error('이메일 전송에 실패했습니다.'); return; }
+      if (data?.error) { toast.error(data.error); return; }
       toast.success(`${data.count}건의 누적 결과가 ${user.email}로 전송되었습니다.`);
-    } catch (e) {
-      console.error('Email error:', e);
+    } catch {
       toast.error('이메일 전송 중 오류가 발생했습니다.');
     } finally {
       setIsSendingEmail(false);
     }
   };
 
-  if (!user) {
-    return <LoginScreen onLogin={handleLogin} />;
-  }
+  if (!user) return <LoginScreen onLogin={handleLogin} />;
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background font-body text-foreground selection:bg-primary/10 selection:text-primary">
       <AppHeader
         isAdmin={isAdmin}
         activeTab={activeTab}
-        onToggleAdmin={() => setActiveTab(activeTab === 'admin' ? 'search' : 'admin')}
+        userEmail={user.email}
+        onTabChange={setActiveTab}
         onLogout={handleLogout}
       />
 
-      {activeTab === 'admin' ? (
-        <AdminPanel searchHistory={searchHistory} />
-      ) : (
-        <>
-          <SearchBar
-            query={searchQuery}
-            onQueryChange={setSearchQuery}
-            onSearch={handleSearch}
-            isSearching={isSearching}
+      <main className="mx-auto max-w-7xl p-8 lg:p-12">
+        {activeTab === 'admin' ? (
+          <AdminPanel
+            searchHistory={searchHistory}
+            onDataUpload={handleDataUpload}
+            localDbCount={localDB.length}
           />
-          <ResultsList
-            results={results}
-            isSearching={isSearching}
-            hasSearched={hasSearched}
-            onSelect={setSelectedPjt}
-          />
-          
-          {results.length > 0 && (
-            <div className="flex flex-col items-center gap-3 pb-8">
-              <button
-                onClick={() => downloadExcel(results, searchQuery)}
-                className="flex items-center gap-2 rounded-sm border border-border px-5 py-2.5 font-data text-xs text-muted-foreground transition-all hover:border-foreground hover:text-foreground"
-              >
-                📊 검색결과 Excel 다운로드
-              </button>
-              <button
-                onClick={handleSendEmail}
-                disabled={isSendingEmail}
-                className="flex items-center gap-2 rounded-sm border border-primary/30 bg-primary/5 px-5 py-2.5 font-data text-xs text-primary transition-all hover:bg-primary/10 disabled:opacity-50"
-              >
-                {isSendingEmail ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <Mail className="h-3.5 w-3.5" />
-                )}
-                {isSendingEmail ? '전송 중...' : `누적 검색결과 이메일 전송 (${user.email})`}
-              </button>
-            </div>
-          )}
-        </>
-      )}
+        ) : (
+          <div className="space-y-12">
+            <SearchBar
+              query={searchQuery}
+              onQueryChange={setSearchQuery}
+              onSearch={handleSearch}
+              isSearching={isSearching}
+            />
+
+            <ResultsList
+              results={results}
+              isSearching={isSearching}
+              hasSearched={hasSearched}
+              onSelect={setSelectedPjt}
+            />
+
+            {results.length > 0 && (
+              <div className="flex flex-col items-center gap-3 pb-8">
+                <button
+                  onClick={() => downloadExcel(results, searchQuery)}
+                  className="flex items-center gap-2 rounded-2xl border border-border bg-card px-6 py-3 font-data text-xs text-muted-foreground transition-all hover:border-foreground hover:text-foreground"
+                >
+                  📊 검색결과 Excel 다운로드
+                </button>
+                <button
+                  onClick={handleSendEmail}
+                  disabled={isSendingEmail}
+                  className="flex items-center gap-2 rounded-2xl border border-primary/30 bg-primary/5 px-6 py-3 font-data text-xs text-primary transition-all hover:bg-primary/10 disabled:opacity-50"
+                >
+                  {isSendingEmail ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
+                  {isSendingEmail ? '전송 중...' : `누적 검색결과 이메일 전송 (${user.email})`}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </main>
 
       <DetailModal
         project={selectedPjt}

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, Loader2 } from 'lucide-react';
+import { Search, Loader2, Sparkles } from 'lucide-react';
 
 interface SearchBarProps {
   query: string;
@@ -10,31 +10,30 @@ interface SearchBarProps {
 
 const SearchBar: React.FC<SearchBarProps> = ({ query, onQueryChange, onSearch, isSearching }) => {
   return (
-    <div className="sticky top-[57px] z-20 border-b border-border bg-card px-6 py-4">
-      <div className="mx-auto max-w-3xl">
-        <div className="relative flex items-center">
-          <Search className="absolute left-4 h-4 w-4 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder="건물명, 주소, 프로젝트명 검색..."
-            className="w-full rounded-lg border border-border bg-background py-3 pl-11 pr-24 font-data text-sm text-foreground outline-none transition-all focus:border-foreground"
-            value={query}
-            onChange={(e) => onQueryChange(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && onSearch()}
-          />
-          <button
-            onClick={onSearch}
-            disabled={isSearching}
-            className="absolute right-2 flex h-9 w-9 items-center justify-center rounded-full bg-primary text-primary-foreground transition-all hover:opacity-90 active:scale-95 disabled:opacity-50"
-          >
-            {isSearching ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <span className="font-display text-[10px]">조회</span>
-            )}
-          </button>
-        </div>
-      </div>
+    <div className="relative mx-auto max-w-4xl">
+      <input
+        type="text"
+        className="w-full rounded-4xl border border-border bg-card py-8 pl-14 pr-44 font-body text-xl font-bold shadow-2xl outline-none transition-all placeholder:text-muted-foreground/30 focus:border-primary focus:ring-4 focus:ring-primary/5"
+        placeholder="현장명, 지번, 또는 광범위한 지역 재개발 키워드..."
+        value={query}
+        onChange={(e) => onQueryChange(e.target.value)}
+        onKeyDown={(e) => e.key === 'Enter' && onSearch()}
+      />
+      <Search className="absolute left-7 top-1/2 -translate-y-1/2 text-muted-foreground/30" size={28} />
+      <button
+        onClick={onSearch}
+        disabled={isSearching}
+        className="absolute right-4 top-1/2 flex -translate-y-1/2 items-center gap-3 rounded-3xl bg-foreground px-10 py-4 font-display text-sm uppercase tracking-widest text-primary-foreground transition-all hover:bg-primary active:scale-95 disabled:opacity-50"
+      >
+        {isSearching ? (
+          <Loader2 className="animate-spin" size={20} />
+        ) : (
+          <>
+            <Sparkles size={20} />
+            AI Intelligence
+          </>
+        )}
+      </button>
     </div>
   );
 };
