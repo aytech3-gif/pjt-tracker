@@ -125,13 +125,19 @@ const DetailModal: React.FC<DetailModalProps> = ({ project, onClose, onSearchDev
                 ))}
               </div>
 
-              {/* Address */}
-              <div className="flex items-center justify-between rounded-4xl bg-foreground p-8 text-primary-foreground">
+              {/* Address — click to open Naver Map */}
+              <a
+                href={`https://map.naver.com/v5/search/${encodeURIComponent(project.address)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group flex items-center justify-between rounded-4xl bg-foreground p-8 text-primary-foreground transition-all hover:ring-2 hover:ring-primary"
+              >
                 <div>
-                  <p className="mb-3 font-display text-[9px] uppercase tracking-widest opacity-40">Project Location</p>
-                  <p className="font-display text-2xl leading-snug">{project.address}</p>
+                  <p className="mb-3 font-display text-[9px] uppercase tracking-widest opacity-40">Project Location · 클릭하면 네이버지도</p>
+                  <p className="font-display text-2xl leading-snug group-hover:underline">{project.address}</p>
                 </div>
-              </div>
+                <ExternalLink size={20} className="flex-shrink-0 opacity-40 transition-opacity group-hover:opacity-100" />
+              </a>
 
               {/* Stakeholders & Summary */}
               <div className="grid grid-cols-2 gap-8">
