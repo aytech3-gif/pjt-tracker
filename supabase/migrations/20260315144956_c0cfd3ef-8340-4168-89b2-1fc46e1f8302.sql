@@ -1,0 +1,2 @@
+CREATE POLICY "Allow insert for all" ON public.search_results FOR INSERT TO authenticated, anon WITH CHECK (true);
+CREATE POLICY "Allow select for all" ON public.search_results FOR SELECT TO authenticated, anon USING (true);
