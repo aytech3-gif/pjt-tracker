@@ -1,5 +1,6 @@
 import React from 'react';
-import { Activity } from 'lucide-react';
+import { Activity, Upload } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface SearchLog {
   query: string;
@@ -7,43 +8,102 @@ interface SearchLog {
   user: string;
 }
 
-interface AdminPanelProps {
-  searchHistory: SearchLog[];
+interface LocalDBItem {
+  [key: string]: string;
 }
 
-const AdminPanel: React.FC<AdminPanelProps> = ({ searchHistory }) => {
+interface AdminPanelProps {
+  searchHistory: SearchLog[];
+  onDataUpload: (data: LocalDBItem[]) => void;
+  localDbCount: number;
+}
+
+const parseCSV = (text: string): LocalDBItem[] => {
+  const rows = text.split(/\r?\n/);
+  if (rows.length === 0) return [];
+  const headers = rows[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+  return rows.slice(1).filter(row => row.trim()).map(row => {
+    const values = row.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || [];
+    const obj: LocalDBItem = {};
+    headers.forEach((header, i) => {
+      const val = values[i] ? values[i].trim() : '';
+      obj[header] = val.replace(/^"|"$/g, '') || '';
+    });
+    return obj;
+  });
+};
+
+const AdminPanel: React.FC<AdminPanelProps> = ({ searchHistory, onDataUpload, localDbCount }) => {
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const parsed = parseCSV(ev.target?.result as string);
+        onDataUpload(parsed);
+        toast.success(`로컬 DB에 ${parsed.length.toLocaleString()}건의 기준 데이터를 동기화했습니다.`);
+      } catch {
+        toast.error('CSV 처리 실패');
+      }
+    };
+    reader.readAsText(file);
+  };
+
   return (
-    <div className="mx-auto max-w-3xl p-6">
-      <h2 className="mb-4 font-display text-sm text-foreground">Activity Logs</h2>
-      <div className="rounded-lg border border-border bg-card">
-        <div className="custom-scrollbar max-h-[70vh] overflow-y-auto">
-          {searchHistory.length > 0 ? (
-            searchHistory.map((log, idx) => (
-              <div
-                key={idx}
-                className="flex items-center justify-between border-b border-border px-5 py-3 last:border-b-0"
-              >
-                <div className="flex items-center gap-3">
-                  <Activity className="h-3 w-3 text-muted-foreground" />
-                  <span className="font-data text-xs text-foreground">
-                    "{log.query}"
-                  </span>
+    <div className="mx-auto max-w-4xl space-y-12 py-12">
+      {/* CSV Upload */}
+      <div className="rounded-5xl border border-border bg-card p-20 text-center shadow-2xl transition-all">
+        <div className="mx-auto mb-10 inline-flex rounded-4xl bg-primary/10 p-10 text-primary shadow-xl transition-transform hover:scale-110">
+          <Upload size={56} />
+        </div>
+        <h2 className="mb-6 font-display text-3xl tracking-tighter text-foreground">
+          Database Migration Center
+        </h2>
+        <p className="mx-auto mb-4 max-w-md font-display text-xs uppercase leading-relaxed tracking-[0.2em] text-muted-foreground">
+          LG전자 세일즈 자산을 보호하기 위해 최신 인허가 소스 데이터를 업로드하십시오.
+          <br />(CSV 형식만 지원됩니다)
+        </p>
+        {localDbCount > 0 && (
+          <p className="mb-8 font-data text-sm font-bold text-primary">
+            현재 로컬 DB: {localDbCount.toLocaleString()}건
+          </p>
+        )}
+        <label className="inline-flex cursor-pointer items-center gap-8 rounded-3xl bg-foreground px-16 py-6 font-display text-sm uppercase tracking-widest text-primary-foreground shadow-2xl transition-all hover:bg-primary active:scale-95">
+          Select Master CSV Source
+          <input type="file" accept=".csv" className="hidden" onChange={handleFileUpload} />
+        </label>
+      </div>
+
+      {/* Search History */}
+      <div>
+        <h2 className="mb-4 font-display text-sm text-foreground">Activity Logs</h2>
+        <div className="overflow-hidden rounded-3xl border border-border bg-card">
+          <div className="custom-scrollbar max-h-[50vh] overflow-y-auto">
+            {searchHistory.length > 0 ? (
+              searchHistory.map((log, idx) => (
+                <div
+                  key={idx}
+                  className="flex items-center justify-between border-b border-border px-6 py-4 last:border-b-0"
+                >
+                  <div className="flex items-center gap-3">
+                    <Activity className="h-3 w-3 text-muted-foreground" />
+                    <span className="font-data text-xs text-foreground">"{log.query}"</span>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <span className="font-data text-[10px] text-muted-foreground">{log.user}</span>
+                    <span className="font-data text-[10px] text-muted-foreground">
+                      {new Date(log.time).toLocaleTimeString()}
+                    </span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-4">
-                  <span className="font-data text-[10px] text-muted-foreground">
-                    {log.user}
-                  </span>
-                  <span className="font-data text-[10px] text-muted-foreground">
-                    {new Date(log.time).toLocaleTimeString()}
-                  </span>
-                </div>
-              </div>
-            ))
-          ) : (
-            <p className="p-8 text-center font-data text-xs text-muted-foreground">
-              검색 이력이 없습니다.
-            </p>
-          )}
+              ))
+            ) : (
+              <p className="p-8 text-center font-data text-xs text-muted-foreground">
+                검색 이력이 없습니다.
+              </p>
+            )}
+          </div>
         </div>
       </div>
     </div>

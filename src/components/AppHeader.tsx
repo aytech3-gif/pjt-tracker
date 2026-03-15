@@ -1,44 +1,55 @@
 import React from 'react';
-import { Building2, LogOut, Settings, Search } from 'lucide-react';
+import { Layout, LogOut } from 'lucide-react';
 
 interface AppHeaderProps {
   isAdmin: boolean;
   activeTab: string;
-  onToggleAdmin: () => void;
+  userEmail: string;
+  onTabChange: (tab: 'search' | 'admin') => void;
   onLogout: () => void;
 }
 
-const AppHeader: React.FC<AppHeaderProps> = ({ isAdmin, activeTab, onToggleAdmin, onLogout }) => {
+const AppHeader: React.FC<AppHeaderProps> = ({ isAdmin, activeTab, userEmail, onTabChange, onLogout }) => {
   return (
-    <header className="sticky top-0 z-30 border-b border-border bg-card">
-      <div className="mx-auto flex max-w-3xl items-center justify-between px-6 py-3">
-        <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-sm bg-primary">
-            <Building2 className="h-4 w-4 text-primary-foreground" />
+    <header className="sticky top-0 z-40 w-full border-b border-border bg-card/80 backdrop-blur-xl">
+      <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-8">
+        <div className="flex items-center gap-4">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-lg">
+            <Layout size={20} />
           </div>
-          <span className="font-display text-sm tracking-tight text-foreground">
-            PJT-Tracker
-          </span>
+          <h1 className="font-display text-xl tracking-tighter text-foreground">
+            PJT TRACKER <span className="ml-1 text-primary">v3.2</span>
+          </h1>
         </div>
 
-        <div className="flex items-center gap-1">
-          {isAdmin && (
-            <button
-              onClick={onToggleAdmin}
-              className={`rounded-sm p-2 transition-all ${
-                activeTab === 'admin'
-                  ? 'bg-primary text-primary-foreground'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {activeTab === 'admin' ? <Search className="h-4 w-4" /> : <Settings className="h-4 w-4" />}
-            </button>
-          )}
+        {isAdmin && (
+          <nav className="flex gap-1 rounded-2xl bg-secondary p-1.5">
+            {(['search', 'admin'] as const).map((t) => (
+              <button
+                key={t}
+                onClick={() => onTabChange(t)}
+                className={`rounded-xl px-8 py-2.5 font-display text-[10px] uppercase tracking-widest transition-all ${
+                  activeTab === t
+                    ? 'bg-card text-primary shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {t}
+              </button>
+            ))}
+          </nav>
+        )}
+
+        <div className="flex items-center gap-4">
+          <div className="hidden text-right sm:block">
+            <p className="font-display text-[9px] uppercase tracking-widest text-muted-foreground">LGE User</p>
+            <p className="font-body text-xs font-bold text-foreground">{userEmail}</p>
+          </div>
           <button
             onClick={onLogout}
-            className="rounded-sm p-2 text-muted-foreground transition-all hover:text-primary"
+            className="rounded-xl bg-secondary p-3 text-muted-foreground transition-colors hover:text-primary"
           >
-            <LogOut className="h-4 w-4" />
+            <LogOut size={20} />
           </button>
         </div>
       </div>
