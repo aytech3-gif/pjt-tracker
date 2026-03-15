@@ -14,7 +14,7 @@ interface LocalDBItem {
 
 interface AdminPanelProps {
   searchHistory: SearchLog[];
-  onDataUpload: (data: LocalDBItem[]) => void;
+  onDataUpload: (data: LocalDBItem[]) => Promise<void>;
   localDbCount: number;
 }
 
@@ -116,10 +116,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ searchHistory, onDataUpload, lo
       if (foundCols.length === 0) {
         toast.warning('컬럼명이 인식되지 않습니다. 인코딩 문제일 수 있습니다.');
       }
-      onDataUpload(parsed);
+      await onDataUpload(parsed);
       toast.success(`로컬 DB에 ${parsed.length.toLocaleString()}건의 기준 데이터를 동기화했습니다. (${foundCols.length}/${expectedCols.length} 컬럼 확인)`);
-    } catch {
-      toast.error('CSV 처리 실패');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'CSV 처리 실패');
     }
   };
 
