@@ -1,8 +1,10 @@
 import type { ProjectResult } from '@/components/ResultsList';
+import { supabase } from '@/integrations/supabase/client';
 
 const APP_ID = 'lge-pjt-tracker-v3';
 const LOCAL_DB_KEY = `${APP_ID}_db`;
-const LEGACY_LOCAL_STORAGE_LIMIT = 4_500_000;
+const LOCAL_DB_VERSION_KEY = `${APP_ID}_db_version`;
+const CLOUD_FILE_PATH = 'shared/local-db.json';
 const INDEXED_DB_NAME = `${APP_ID}-indexed`;
 const INDEXED_DB_STORE = 'kv';
 const INDEXED_DB_VERSION = 1;
@@ -25,14 +27,7 @@ const normalizeSearchText = (value: string): string => {
     .replace(/[^0-9a-z가-힣]/g, '');
 };
 
-const readFromLocalStorage = (): LocalDBItem[] => {
-  try {
-    const d = localStorage.getItem(LOCAL_DB_KEY);
-    return d ? JSON.parse(d) : [];
-  } catch {
-    return [];
-  }
-};
+// ── IndexedDB helpers ──
 
 const openDB = (): Promise<IDBDatabase> => {
   return new Promise((resolve, reject) => {
@@ -40,16 +35,13 @@ const openDB = (): Promise<IDBDatabase> => {
       reject(new Error('IndexedDB를 사용할 수 없습니다.'));
       return;
     }
-
     const request = indexedDB.open(INDEXED_DB_NAME, INDEXED_DB_VERSION);
-
     request.onupgradeneeded = () => {
       const db = request.result;
       if (!db.objectStoreNames.contains(INDEXED_DB_STORE)) {
         db.createObjectStore(INDEXED_DB_STORE);
       }
     };
-
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error ?? new Error('IndexedDB open 실패'));
   });
@@ -61,7 +53,6 @@ const idbGet = async (key: string): Promise<string | null> => {
     const tx = db.transaction(INDEXED_DB_STORE, 'readonly');
     const store = tx.objectStore(INDEXED_DB_STORE);
     const request = store.get(key);
-
     request.onsuccess = () => resolve((request.result as string | undefined) ?? null);
     request.onerror = () => reject(request.error ?? new Error('IndexedDB read 실패'));
     tx.oncomplete = () => db.close();
@@ -76,61 +67,100 @@ const idbSet = async (key: string, value: string): Promise<void> => {
     const tx = db.transaction(INDEXED_DB_STORE, 'readwrite');
     const store = tx.objectStore(INDEXED_DB_STORE);
     store.put(value, key);
-
-    tx.oncomplete = () => {
-      db.close();
-      resolve();
-    };
-    tx.onerror = () => {
-      db.close();
-      reject(tx.error ?? new Error('IndexedDB write 실패'));
-    };
-    tx.onabort = () => {
-      db.close();
-      reject(new Error('IndexedDB write 중단'));
-    };
+    tx.oncomplete = () => { db.close(); resolve(); };
+    tx.onerror = () => { db.close(); reject(tx.error ?? new Error('IndexedDB write 실패')); };
+    tx.onabort = () => { db.close(); reject(new Error('IndexedDB write 중단')); };
   });
 };
 
-export async function loadLocalDB(): Promise<LocalDBItem[]> {
-  try {
-    const indexed = await idbGet(LOCAL_DB_KEY);
-    if (indexed) return JSON.parse(indexed);
-  } catch {
-    // IndexedDB unavailable or failed
-  }
+// ── Cloud storage helpers ──
 
-  const legacy = readFromLocalStorage();
-  if (legacy.length > 0) {
-    try {
-      await idbSet(LOCAL_DB_KEY, JSON.stringify(legacy));
-    } catch {
-      // keep legacy fallback only
+async function getCloudVersion(): Promise<string | null> {
+  try {
+    const { data, error } = await supabase.storage
+      .from('local-db')
+      .list('shared', { limit: 1, search: 'local-db.json' });
+    if (error || !data || data.length === 0) return null;
+    return data[0].updated_at || data[0].created_at || 'unknown';
+  } catch {
+    return null;
+  }
+}
+
+async function downloadFromCloud(): Promise<LocalDBItem[] | null> {
+  try {
+    const { data, error } = await supabase.storage
+      .from('local-db')
+      .download(CLOUD_FILE_PATH);
+    if (error || !data) return null;
+    const text = await data.text();
+    return JSON.parse(text) as LocalDBItem[];
+  } catch {
+    return null;
+  }
+}
+
+export async function uploadToCloud(items: LocalDBItem[]): Promise<void> {
+  const json = JSON.stringify(items);
+  const blob = new Blob([json], { type: 'application/json' });
+  const { error } = await supabase.storage
+    .from('local-db')
+    .upload(CLOUD_FILE_PATH, blob, { upsert: true });
+  if (error) throw new Error(`클라우드 업로드 실패: ${error.message}`);
+}
+
+// ── Main API ──
+
+/**
+ * Load local DB: check cloud version → if newer than cache, download → cache in IndexedDB.
+ */
+export async function loadLocalDB(): Promise<LocalDBItem[]> {
+  // 1. Check cloud version
+  const cloudVersion = await getCloudVersion();
+
+  // 2. Check local cache version
+  let cachedVersion: string | null = null;
+  try {
+    cachedVersion = await idbGet(LOCAL_DB_VERSION_KEY);
+  } catch { /* no cache */ }
+
+  // 3. If cloud has data and it's newer (or no cache), download
+  if (cloudVersion && cloudVersion !== cachedVersion) {
+    const cloudData = await downloadFromCloud();
+    if (cloudData && cloudData.length > 0) {
+      // Cache locally
+      try {
+        await idbSet(LOCAL_DB_KEY, JSON.stringify(cloudData));
+        await idbSet(LOCAL_DB_VERSION_KEY, cloudVersion);
+      } catch { /* cache failed, still usable */ }
+      return cloudData;
     }
   }
 
-  return legacy;
+  // 4. Use local cache
+  try {
+    const cached = await idbGet(LOCAL_DB_KEY);
+    if (cached) return JSON.parse(cached);
+  } catch { /* no cache */ }
+
+  return [];
 }
 
 export async function saveLocalDB(data: LocalDBItem[]): Promise<void> {
   const json = JSON.stringify(data);
-
+  // Save to IndexedDB cache
   try {
     await idbSet(LOCAL_DB_KEY, json);
-    return;
-  } catch {
-    // Fallback to localStorage
-  }
+  } catch { /* cache failed */ }
 
-  if (json.length >= LEGACY_LOCAL_STORAGE_LIMIT) {
-    throw new Error('데이터가 커서 브라우저 저장공간에 저장되지 않았습니다.');
-  }
+  // Upload to cloud (shared with all users)
+  await uploadToCloud(data);
 
+  // Update local version marker
   try {
-    localStorage.setItem(LOCAL_DB_KEY, json);
-  } catch {
-    throw new Error('브라우저 저장공간이 부족해 내부 DB 저장에 실패했습니다.');
-  }
+    const newVersion = new Date().toISOString();
+    await idbSet(LOCAL_DB_VERSION_KEY, newVersion);
+  } catch { /* ok */ }
 }
 
 export function buildSearchIndex(data: LocalDBItem[]): LocalDBIndexedItem[] {
@@ -139,9 +169,7 @@ export function buildSearchIndex(data: LocalDBItem[]): LocalDBIndexedItem[] {
       .filter(Boolean)
       .map(id => id.replace(/-/g, ''))
       .join(' ');
-
     const mergedText = `${Object.values(item).join(' ')} ${bizIds}`;
-
     return {
       ...item,
       _searchIdx: mergedText.toLowerCase(),
@@ -183,7 +211,7 @@ export function searchLocalDB(indexedData: LocalDBIndexedItem[], query: string):
         area: item['연면적(㎡)'] ? `${formatNum(item['연면적(㎡)'])}` : (item['연면적'] || ''),
         status: item['허가일'] ? '인허가' : '확인필요',
         date: item['허가일'] || item['착공일'] || '',
-        source: '📂 로컬 DB',
+        source: '📂 내부 DB',
         summary: '',
       };
     });
