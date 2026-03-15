@@ -14,7 +14,7 @@ interface LocalDBItem {
 
 interface AdminPanelProps {
   searchHistory: SearchLog[];
-  onDataUpload: (data: LocalDBItem[]) => void;
+  onDataUpload: (data: LocalDBItem[]) => Promise<void>;
   localDbCount: number;
 }
 
