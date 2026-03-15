@@ -63,24 +63,39 @@ const parseCSVRow = (row: string): string[] => {
 };
 
 const AdminPanel: React.FC<AdminPanelProps> = ({ searchHistory, onDataUpload, localDbCount }) => {
+  const EXPECTED_HEADERS = ['건물명', '시도', '주용도', '허가일', '건축주상호명', '공사명'];
+
+  const hasKoreanHeaders = (text: string): boolean => {
+    const firstLine = text.split(/\r?\n/)[0] || '';
+    return EXPECTED_HEADERS.some(h => firstLine.includes(h));
+  };
+
   const readFileWithEncoding = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
-      // Try UTF-8 first
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        const text = ev.target?.result as string;
-        // If garbled (contains replacement chars or mojibake patterns), retry with EUC-KR
-        if (text && (text.includes('�') || /[\uFFFD]/.test(text) || /^[^\x00-\x7F]{2,}[,\r\n]/.test(text) === false && /[\x80-\xFF]/.test(text.slice(0, 200)))) {
-          const readerKR = new FileReader();
-          readerKR.onload = (ev2) => resolve(ev2.target?.result as string);
-          readerKR.onerror = reject;
-          readerKR.readAsText(file, 'euc-kr');
-        } else {
-          resolve(text);
+      // Try EUC-KR first (most Korean government CSV files use this encoding)
+      const readerKR = new FileReader();
+      readerKR.onload = (ev) => {
+        const textKR = ev.target?.result as string;
+        if (textKR && hasKoreanHeaders(textKR)) {
+          resolve(textKR);
+          return;
         }
+        // Fallback to UTF-8
+        const readerUTF = new FileReader();
+        readerUTF.onload = (ev2) => {
+          const textUTF = ev2.target?.result as string;
+          if (textUTF && hasKoreanHeaders(textUTF)) {
+            resolve(textUTF);
+          } else {
+            // Use whichever has more recognizable Korean chars
+            resolve(textKR);
+          }
+        };
+        readerUTF.onerror = reject;
+        readerUTF.readAsText(file, 'UTF-8');
       };
-      reader.onerror = reject;
-      reader.readAsText(file, 'UTF-8');
+      readerKR.onerror = reject;
+      readerKR.readAsText(file, 'euc-kr');
     });
   };
 
