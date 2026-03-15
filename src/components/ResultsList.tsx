@@ -30,7 +30,7 @@ const formatNum = (val: string | undefined) => {
   return isNaN(num) ? val : num.toLocaleString();
 };
 
-const isLocalSource = (source: string) => source === 'local_db' || source === '📂 로컬 DB';
+const isLocalSource = (source: string) => source === 'local_db' || source.includes('로컬') || source.includes('📂');
 
 const ResultsList: React.FC<ResultsListProps> = ({ results, isSearching, hasSearched, onSelect }) => {
   if (isSearching) {
