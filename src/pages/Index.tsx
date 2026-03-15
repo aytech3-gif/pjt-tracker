@@ -72,13 +72,36 @@ const Index = () => {
   const [localDB, setLocalDB] = useState<LocalDBItem[]>([]);
 
   useEffect(() => {
-    const savedUser = localStorage.getItem(`${APP_ID}_session`);
-    if (savedUser) {
-      try { setUser(JSON.parse(savedUser)); } catch { localStorage.removeItem(`${APP_ID}_session`); }
-    }
-    const savedHistory = localStorage.getItem(`${APP_ID}_history`);
-    if (savedHistory) setSearchHistory(JSON.parse(savedHistory));
-    setLocalDB(loadLocalDB());
+    let cancelled = false;
+
+    const bootstrap = async () => {
+      const savedUser = localStorage.getItem(`${APP_ID}_session`);
+      if (savedUser) {
+        try {
+          if (!cancelled) setUser(JSON.parse(savedUser));
+        } catch {
+          localStorage.removeItem(`${APP_ID}_session`);
+        }
+      }
+
+      const savedHistory = localStorage.getItem(`${APP_ID}_history`);
+      if (savedHistory) {
+        try {
+          if (!cancelled) setSearchHistory(JSON.parse(savedHistory));
+        } catch {
+          localStorage.removeItem(`${APP_ID}_history`);
+        }
+      }
+
+      const loaded = await loadLocalDB();
+      if (!cancelled) setLocalDB(loaded);
+    };
+
+    bootstrap();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const indexedData = useMemo(() => buildSearchIndex(localDB), [localDB]);
@@ -94,9 +117,9 @@ const Index = () => {
     setUser(null);
   };
 
-  const handleDataUpload = (data: LocalDBItem[]) => {
+  const handleDataUpload = async (data: LocalDBItem[]) => {
     setLocalDB(data);
-    saveLocalDB(data);
+    await saveLocalDB(data);
   };
 
   const performSearch = useCallback(async (query: string) => {
