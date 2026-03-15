@@ -21,16 +21,45 @@ interface AdminPanelProps {
 const parseCSV = (text: string): LocalDBItem[] => {
   const rows = text.split(/\r?\n/);
   if (rows.length === 0) return [];
-  const headers = rows[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+  const headers = parseCSVRow(rows[0]);
   return rows.slice(1).filter(row => row.trim()).map(row => {
-    const values = row.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || [];
+    const values = parseCSVRow(row);
     const obj: LocalDBItem = {};
     headers.forEach((header, i) => {
-      const val = values[i] ? values[i].trim() : '';
-      obj[header] = val.replace(/^"|"$/g, '') || '';
+      obj[header] = (values[i] || '').trim();
     });
     return obj;
   });
+};
+
+const parseCSVRow = (row: string): string[] => {
+  const result: string[] = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < row.length; i++) {
+    const ch = row[i];
+    if (inQuotes) {
+      if (ch === '"' && row[i + 1] === '"') {
+        current += '"';
+        i++;
+      } else if (ch === '"') {
+        inQuotes = false;
+      } else {
+        current += ch;
+      }
+    } else {
+      if (ch === '"') {
+        inQuotes = true;
+      } else if (ch === ',') {
+        result.push(current);
+        current = '';
+      } else {
+        current += ch;
+      }
+    }
+  }
+  result.push(current);
+  return result;
 };
 
 const AdminPanel: React.FC<AdminPanelProps> = ({ searchHistory, onDataUpload, localDbCount }) => {
