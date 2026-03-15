@@ -119,10 +119,17 @@ const Index = () => {
     // 2. Edge function search (async)
     const edgeResults = await fetchBuildingIntelligence(trimmed, user?.email || '');
 
-    // Merge with deduplication
+    // Merge: local DB first (trusted), then AI (reference)
     const seen = new Set<string>();
     const merged: ProjectResult[] = [];
-    for (const item of [...localResults, ...edgeResults]) {
+    // Local DB results first — 100% trusted
+    for (const item of localResults) {
+      const key = `${item.name}_${item.address}`.toLowerCase().replace(/\s/g, '');
+      seen.add(key);
+      merged.push(item);
+    }
+    // AI results second — reference only, skip duplicates
+    for (const item of edgeResults) {
       const key = `${item.name}_${item.address}`.toLowerCase().replace(/\s/g, '');
       if (!seen.has(key)) {
         seen.add(key);
@@ -135,10 +142,12 @@ const Index = () => {
 
     if (merged.length === 0) {
       toast.info('검색된 프로젝트가 없습니다.');
+    } else if (localResults.length > 0 && edgeResults.length > 0) {
+      toast.success(`내부 DB ${localResults.length}건 (확정) + AI ${edgeResults.length}건 (참고)`);
     } else if (localResults.length > 0 && edgeResults.length === 0) {
-      toast.info('내부 DB에서만 검색되었습니다.');
+      toast.success(`내부 DB에서 ${localResults.length}건 확인됨 (100% 신뢰)`);
     } else if (localResults.length === 0 && edgeResults.length > 0) {
-      toast.info('내부 DB에는 없으나, AI 검색 결과를 가져왔습니다.');
+      toast.info('내부 DB에는 없으나, AI 검색 결과를 참고용으로 가져왔습니다.');
     }
   }, [isSearching, searchHistory, user, indexedData]);
 

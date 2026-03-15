@@ -70,10 +70,10 @@ const ResultsList: React.FC<ResultsListProps> = ({ results, isSearching, hasSear
                   </div>
                   <span className={`rounded-full px-4 py-1.5 font-display text-[9px] uppercase tracking-widest ${
                     isLocal
-                      ? 'bg-secondary text-muted-foreground'
-                      : 'bg-foreground text-primary-foreground shadow-md'
+                      ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 ring-1 ring-green-200 dark:ring-green-800'
+                      : 'bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400 ring-1 ring-amber-200 dark:ring-amber-800'
                   }`}>
-                    {isLocal ? 'LOCAL DB' : 'LIVE SEARCH'}
+                    {isLocal ? '✓ 확정 데이터' : '⚡ AI 참고용'}
                   </span>
                 </div>
 
