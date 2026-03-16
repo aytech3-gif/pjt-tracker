@@ -11,8 +11,10 @@ interface AppHeaderProps {
   onReset: () => void;
 }
 
-const AppHeader: React.FC<AppHeaderProps> = ({ isAdmin, activeTab, userEmail, onTabChange, onLogout }) => {
+const AppHeader: React.FC<AppHeaderProps> = ({ isAdmin, activeTab, userEmail, onTabChange, onLogout, onReset }) => {
   const navigate = useNavigate();
+  const handleLogoClick = () => { onReset(); onTabChange('search'); navigate('/'); };
+  return (
   return (
     <header className="sticky top-0 z-40 w-full border-b border-border bg-card/80 backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:h-20 sm:px-8">
