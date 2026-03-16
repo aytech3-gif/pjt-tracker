@@ -117,6 +117,13 @@ const Index = () => {
     setUser(null);
   };
 
+  const handleReset = () => {
+    setSearchQuery('');
+    setResults([]);
+    setHasSearched(false);
+    setSelectedPjt(null);
+  };
+
   const handleDataUpload = async (data: LocalDBItem[]) => {
     setLocalDB(data);
     await saveLocalDB(data);
@@ -209,6 +216,7 @@ const Index = () => {
         userEmail={user.email}
         onTabChange={setActiveTab}
         onLogout={handleLogout}
+        onReset={handleReset}
       />
 
       <main className="mx-auto max-w-7xl p-8 lg:p-12">
