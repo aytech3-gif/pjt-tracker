@@ -42,9 +42,10 @@ const fetchBuildingIntelligence = async (query: string, userEmail: string): Prom
 
 const downloadExcel = (results: ProjectResult[], query: string) => {
   if (results.length === 0) return;
-  const headers = ['프로젝트명', '주소', '시행사', '시공사', '설계사', '규모', '용도', '연면적', '현황', '일자', '출처'];
+  const headers = ['프로젝트명', '주소', '시행사', '시공사', '설계사', '규모', '용도', '연면적', '현황', '허가일', '착공일', '준공일', '사업자번호', '시공사선정', '출처'];
   const rows = results.map(r => [
-    r.name, r.address, r.developer, r.builder, r.designer || '', r.scale, r.purpose, r.area, r.status, r.date, r.source,
+    r.name, r.address, r.developer, r.builder, r.designer || '', r.scale, r.purpose, r.area, r.status, r.date,
+    r.startDate || '', r.completionDate || '', r.ownerBizNo || '', r.builderStatus || '', r.source,
   ]);
   const csvContent = '\uFEFF' + [headers, ...rows].map(row =>
     row.map(cell => `"${(cell || '').replace(/"/g, '""')}"`).join(',')
