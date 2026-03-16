@@ -15,6 +15,11 @@ export interface ProjectResult {
   date: string;
   source: string;
   summary?: string;
+  ownerBizNo?: string;
+  startDate?: string;
+  completionDate?: string;
+  builderStatus?: string;
+  matchRate?: number;
 }
 
 interface ResultsListProps {
@@ -34,53 +39,82 @@ const isLocalSource = (source: string) => source === 'local_db' || source.includ
 
 const LocalCard: React.FC<{ item: ProjectResult; onSelect: (item: ProjectResult) => void }> = ({ item, onSelect }) => {
   const formattedArea = formatNum(item.area);
+  const isFuzzy = item.matchRate !== undefined && item.matchRate < 100;
   return (
     <div
       onClick={() => onSelect(item)}
-      className="group relative cursor-pointer overflow-hidden rounded-3xl border-2 border-green-200 bg-gradient-to-br from-green-50 to-emerald-50 p-6 transition-all hover:border-green-400 hover:shadow-xl dark:border-green-800 dark:from-green-950/30 dark:to-emerald-950/20"
+      className="group relative cursor-pointer overflow-hidden rounded-3xl border-2 border-green-200 bg-gradient-to-br from-green-50 to-emerald-50 p-5 transition-all hover:border-green-400 hover:shadow-xl dark:border-green-800 dark:from-green-950/30 dark:to-emerald-950/20"
     >
-      {/* Verified badge */}
-      <div className="absolute right-4 top-4 flex items-center gap-1.5 rounded-full bg-green-600 px-3 py-1 shadow-md">
-        <ShieldCheck size={12} className="text-white" />
-        <span className="font-display text-[8px] font-bold uppercase tracking-wider text-white">확정</span>
+      {/* Badge */}
+      <div className="absolute right-3 top-3 flex items-center gap-1.5 rounded-full bg-green-600 px-2.5 py-1 shadow-md">
+        <ShieldCheck size={11} className="text-white" />
+        <span className="font-display text-[8px] font-bold uppercase tracking-wider text-white">
+          {isFuzzy ? `${item.matchRate}% 일치` : '확정'}
+        </span>
       </div>
 
-      <div className="mb-4 flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-green-600 text-white shadow-md">
-          <Building2 size={20} />
+      <div className="mb-3 flex items-center gap-3">
+        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-green-600 text-white shadow-md">
+          <Building2 size={18} />
         </div>
-        <div className="min-w-0 flex-1">
-          <h3 className="truncate font-display text-base font-bold leading-tight text-foreground group-hover:text-green-700 dark:group-hover:text-green-400">
+        <div className="min-w-0 flex-1 pr-16">
+          <h3 className="truncate font-display text-sm font-bold leading-tight text-foreground group-hover:text-green-700 dark:group-hover:text-green-400">
             {item.name}
           </h3>
         </div>
       </div>
 
-      <p className="mb-3 flex items-center gap-1.5 text-[11px] text-muted-foreground">
-        <MapPin size={12} className="shrink-0 text-green-500" />
+      <p className="mb-2 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+        <MapPin size={11} className="shrink-0 text-green-500" />
         <span className="truncate">{item.address}</span>
       </p>
 
+      {/* New detail fields */}
+      <div className="mb-3 space-y-1 rounded-xl bg-white/60 p-2.5 dark:bg-green-900/20">
+        {item.ownerBizNo && (
+          <p className="font-data text-[10px] text-muted-foreground">
+            <span className="font-bold text-foreground">사업자번호</span> {item.ownerBizNo}
+          </p>
+        )}
+        <div className="flex flex-wrap gap-x-4 gap-y-0.5">
+          {item.startDate && (
+            <p className="font-data text-[10px] text-muted-foreground">
+              <span className="font-bold text-foreground">착공</span> {item.startDate}
+            </p>
+          )}
+          {item.completionDate && (
+            <p className="font-data text-[10px] text-muted-foreground">
+              <span className="font-bold text-foreground">준공</span> {item.completionDate}
+            </p>
+          )}
+        </div>
+        {item.builderStatus && (
+          <p className="font-data text-[10px] text-muted-foreground">
+            <span className="font-bold text-foreground">시공사</span> {item.builderStatus}
+          </p>
+        )}
+      </div>
+
       <div className="flex flex-wrap items-center gap-2">
         {item.purpose && (
-          <span className="rounded-lg bg-green-100 px-2.5 py-1 font-display text-[9px] font-bold text-green-700 dark:bg-green-900/40 dark:text-green-300">
+          <span className="rounded-lg bg-green-100 px-2 py-0.5 font-display text-[9px] font-bold text-green-700 dark:bg-green-900/40 dark:text-green-300">
             {item.purpose}
           </span>
         )}
         {formattedArea && (
-          <span className="rounded-lg bg-white/80 px-2.5 py-1 font-display text-[9px] font-bold text-foreground dark:bg-green-900/20">
+          <span className="rounded-lg bg-white/80 px-2 py-0.5 font-display text-[9px] font-bold text-foreground dark:bg-green-900/20">
             {formattedArea} ㎡
           </span>
         )}
-        {item.date && (
-          <span className="flex items-center gap-1 rounded-lg bg-white/80 px-2.5 py-1 font-display text-[9px] text-muted-foreground dark:bg-green-900/20">
-            <Calendar size={10} /> {item.date}
+        {item.status && (
+          <span className="rounded-lg bg-green-200/60 px-2 py-0.5 font-display text-[9px] font-bold text-green-800 dark:bg-green-800/40 dark:text-green-300">
+            {item.status}
           </span>
         )}
       </div>
 
-      <div className="absolute bottom-4 right-4 flex h-8 w-8 items-center justify-center rounded-xl bg-green-600/10 transition-all group-hover:bg-green-600 group-hover:text-white">
-        <ChevronRight size={16} />
+      <div className="absolute bottom-4 right-4 flex h-7 w-7 items-center justify-center rounded-xl bg-green-600/10 transition-all group-hover:bg-green-600 group-hover:text-white">
+        <ChevronRight size={14} />
       </div>
     </div>
   );

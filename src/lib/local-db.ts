@@ -27,6 +27,30 @@ const normalizeSearchText = (value: string): string => {
     .replace(/[^0-9a-z가-힣]/g, '');
 };
 
+/**
+ * Calculate similarity ratio between two strings (0~1).
+ * Uses longest common subsequence approach for Korean text matching.
+ */
+function similarity(a: string, b: string): number {
+  if (!a || !b) return 0;
+  if (a === b) return 1;
+  // If one contains the other, high similarity
+  if (a.includes(b) || b.includes(a)) return 1;
+
+  const shorter = a.length <= b.length ? a : b;
+  const longer = a.length > b.length ? a : b;
+
+  // Bigram-based similarity (Dice coefficient)
+  const bigramsA = new Set<string>();
+  for (let i = 0; i < shorter.length - 1; i++) bigramsA.add(shorter.slice(i, i + 2));
+  let matches = 0;
+  for (let i = 0; i < longer.length - 1; i++) {
+    if (bigramsA.has(longer.slice(i, i + 2))) matches++;
+  }
+  const total = (shorter.length - 1) + (longer.length - 1);
+  return total > 0 ? (2 * matches) / total : 0;
+}
+
 // ── IndexedDB helpers ──
 
 const openDB = (): Promise<IDBDatabase> => {
@@ -184,10 +208,37 @@ export function searchLocalDB(indexedData: LocalDBIndexedItem[], query: string):
 
   if (rawQ.length < 2 && compactQ.length < 2) return [];
 
-  return indexedData
-    .filter(i => i._searchIdx.includes(rawQ) || (compactQ.length >= 2 && i._searchCompact.includes(compactQ)))
-    .slice(0, 15)
-    .map((item, idx) => {
+  // Score each item: exact match = 1.0, fuzzy >= 0.7 accepted
+  const scored: { item: LocalDBIndexedItem; score: number }[] = [];
+
+  for (const item of indexedData) {
+    // Exact substring match → score 1.0
+    if (item._searchIdx.includes(rawQ) || (compactQ.length >= 2 && item._searchCompact.includes(compactQ))) {
+      scored.push({ item, score: 1.0 });
+      continue;
+    }
+
+    // Fuzzy match against key fields: 건물명, 공사명, 대지위치, 시도+시군구+법정동
+    const nameCompact = normalizeSearchText(item['건물명'] || item['공사명'] || '');
+    const addrCompact = normalizeSearchText(
+      [item['시도'], item['시군구'], item['법정동'], item['대지위치']].filter(Boolean).join('')
+    );
+
+    const nameSim = similarity(compactQ, nameCompact);
+    const addrSim = similarity(compactQ, addrCompact);
+    const bestSim = Math.max(nameSim, addrSim);
+
+    if (bestSim >= 0.7) {
+      scored.push({ item, score: bestSim });
+    }
+  }
+
+  // Sort by score descending
+  scored.sort((a, b) => b.score - a.score);
+
+  return scored
+    .slice(0, 20)
+    .map(({ item, score }, idx) => {
       const formatNum = (val: string | undefined) => {
         if (!val || val === '0') return '';
         const num = parseFloat(String(val).replace(/,/g, ''));
@@ -199,6 +250,23 @@ export function searchLocalDB(indexedData: LocalDBIndexedItem[], query: string):
       if (lot && item['지'] && item['지'] !== '0') lot += `-${String(item['지']).replace(/^0+/, '')}`;
       const address = addressParts.length > 0 ? [...addressParts, lot].join(' ').trim() : '';
 
+      // Determine status from dates
+      const hasPermit = !!item['허가일'];
+      const hasStart = !!item['착공일'];
+      const hasCompletion = !!item['준공일'];
+      let status = '확인필요';
+      if (hasCompletion) status = '준공';
+      else if (hasStart) status = '착공';
+      else if (hasPermit) status = '인허가';
+
+      // Builder status
+      let builderStatus = '';
+      if (item['시공자상호명'] && item['시공자상호명'] !== '확인필요' && item['시공자상호명'].trim()) {
+        builderStatus = `선정 (${item['시공자상호명']})`;
+      } else {
+        builderStatus = '미선정';
+      }
+
       return {
         id: `local-${idx}-${Date.now()}`,
         name: item['건물명'] || item['공사명'] || '정보없음',
@@ -209,10 +277,15 @@ export function searchLocalDB(indexedData: LocalDBIndexedItem[], query: string):
         scale: `지상${item['지상층수'] || '?'}층/지하${item['지하층수'] || '?'}층`,
         purpose: item['주용도'] || '',
         area: item['연면적(㎡)'] ? `${formatNum(item['연면적(㎡)'])}` : (item['연면적'] || ''),
-        status: item['허가일'] ? '인허가' : '확인필요',
+        status,
         date: item['허가일'] || item['착공일'] || '',
         source: '📂 내부 DB',
         summary: '',
+        ownerBizNo: item['건축주사업자번호'] || '',
+        startDate: item['착공일'] || '',
+        completionDate: item['준공일'] || '',
+        builderStatus,
+        matchRate: Math.round(score * 100),
       };
     });
 }
