@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Layout, LogOut } from 'lucide-react';
 
 interface AppHeaderProps {
