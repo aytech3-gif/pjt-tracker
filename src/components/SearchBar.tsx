@@ -10,30 +10,32 @@ interface SearchBarProps {
 
 const SearchBar: React.FC<SearchBarProps> = ({ query, onQueryChange, onSearch, isSearching }) => {
   return (
-    <div className="relative mx-auto max-w-4xl">
-      <input
-        type="text"
-        className="w-full rounded-4xl border border-border bg-card py-8 pl-14 pr-44 font-body text-xl font-bold shadow-2xl outline-none transition-all placeholder:text-muted-foreground/30 focus:border-primary focus:ring-4 focus:ring-primary/5"
-        placeholder="현장명, 지번, 또는 광범위한 지역 재개발 키워드..."
-        value={query}
-        onChange={(e) => onQueryChange(e.target.value)}
-        onKeyDown={(e) => e.key === 'Enter' && onSearch()}
-      />
-      <Search className="absolute left-7 top-1/2 -translate-y-1/2 text-muted-foreground/30" size={28} />
-      <button
-        onClick={onSearch}
-        disabled={isSearching}
-        className="absolute right-4 top-1/2 flex -translate-y-1/2 items-center gap-3 rounded-3xl bg-foreground px-10 py-4 font-display text-sm uppercase tracking-widest text-primary-foreground transition-all hover:bg-primary active:scale-95 disabled:opacity-50"
-      >
-        {isSearching ? (
-          <Loader2 className="animate-spin" size={20} />
-        ) : (
-          <>
-            <Sparkles size={20} />
-            AI Intelligence
-          </>
-        )}
-      </button>
+    <div className="mx-auto max-w-4xl">
+      <div className="relative">
+        <input
+          type="text"
+          className="w-full rounded-2xl border border-border bg-card py-4 pl-10 pr-4 font-body text-sm font-bold shadow-2xl outline-none transition-all placeholder:text-muted-foreground/30 focus:border-primary focus:ring-4 focus:ring-primary/5 sm:rounded-4xl sm:py-8 sm:pl-14 sm:pr-44 sm:text-xl"
+          placeholder="현장명, 지번, 재개발 키워드..."
+          value={query}
+          onChange={(e) => onQueryChange(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && onSearch()}
+        />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/30 sm:left-7" size={20} />
+        <button
+          onClick={onSearch}
+          disabled={isSearching}
+          className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-foreground px-6 py-3 font-display text-xs uppercase tracking-widest text-primary-foreground transition-all hover:bg-primary active:scale-95 disabled:opacity-50 sm:absolute sm:right-4 sm:top-1/2 sm:mt-0 sm:w-auto sm:-translate-y-1/2 sm:rounded-3xl sm:px-10 sm:py-4 sm:text-sm sm:gap-3"
+        >
+          {isSearching ? (
+            <Loader2 className="animate-spin" size={18} />
+          ) : (
+            <>
+              <Sparkles size={18} />
+              AI Intelligence
+            </>
+          )}
+        </button>
+      </div>
     </div>
   );
 };
