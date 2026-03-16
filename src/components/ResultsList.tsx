@@ -15,6 +15,11 @@ export interface ProjectResult {
   date: string;
   source: string;
   summary?: string;
+  ownerBizNo?: string;
+  startDate?: string;
+  completionDate?: string;
+  builderStatus?: string;
+  matchRate?: number;
 }
 
 interface ResultsListProps {
