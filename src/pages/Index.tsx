@@ -107,6 +107,9 @@ const Index = () => {
 
   const indexedData = useMemo(() => buildSearchIndex(localDB), [localDB]);
   const isAdmin = useMemo(() => user?.email === ADMIN_EMAIL, [user]);
+  const searchHistoryRef = useRef(searchHistory);
+  searchHistoryRef.current = searchHistory;
+  const isSearchingRef = useRef(false);
 
   const handleLogin = (u: UserSession) => {
     setUser(u);
