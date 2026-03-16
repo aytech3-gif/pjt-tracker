@@ -48,7 +48,7 @@ async function searchWeb(query: string): Promise<string> {
         },
         body: JSON.stringify({
           query: `${query} 시행 시공 프로젝트 사업실적`,
-          limit: 5,
+          limit: 10,
           lang: "ko",
           country: "kr",
         }),
@@ -76,7 +76,7 @@ async function searchWeb(query: string): Promise<string> {
     });
 
     return unique
-      .slice(0, 5)
+      .slice(0, 10)
       .map(
         (r: any, i: number) =>
           `[${i + 1}] ${r.title || ""}\n${r.description || r.snippet || ""}`
@@ -129,7 +129,7 @@ ${hasWebContext ? "웹 검색 결과를 우선 활용하되, 반드시 당신의
 지시사항:
 - 특정 회사명이 포함되면 그 회사의 알려진 모든 프로젝트를 나열
 - 준공/착공/인허가/계획 단계 모두 포함
-- 최소 5개 이상 찾도록 노력
+- 최소 15개 ~ 20개 프로젝트를 찾도록 최대한 노력하세요
 - 불확실한 항목은 "확인필요"로 표시
 - JSON 배열만 반환
 
@@ -170,7 +170,7 @@ async function searchPublicData(query: string) {
   }
 
   const encodedQuery = encodeURIComponent(query);
-  const url = `http://apis.data.go.kr/1613000/ArchPmsService_v2/getApBasisOulnInfo?serviceKey=${serviceKey}&numOfRows=10&pageNo=1&type=json&platPlc=${encodedQuery}`;
+  const url = `http://apis.data.go.kr/1613000/ArchPmsService_v2/getApBasisOulnInfo?serviceKey=${serviceKey}&numOfRows=20&pageNo=1&type=json&platPlc=${encodedQuery}`;
 
   try {
     const response = await fetchWithTimeout(url, {}, 5000);
