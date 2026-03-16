@@ -117,6 +117,13 @@ const Index = () => {
     setUser(null);
   };
 
+  const handleReset = () => {
+    setSearchQuery('');
+    setResults([]);
+    setHasSearched(false);
+    setSelectedPjt(null);
+  };
+
   const handleDataUpload = async (data: LocalDBItem[]) => {
     setLocalDB(data);
     await saveLocalDB(data);
