@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { Mail, Loader2 } from 'lucide-react';
@@ -42,9 +42,10 @@ const fetchBuildingIntelligence = async (query: string, userEmail: string): Prom
 
 const downloadExcel = (results: ProjectResult[], query: string) => {
   if (results.length === 0) return;
-  const headers = ['프로젝트명', '주소', '시행사', '시공사', '설계사', '규모', '용도', '연면적', '현황', '일자', '출처'];
+  const headers = ['프로젝트명', '주소', '시행사', '시공사', '설계사', '규모', '용도', '연면적', '현황', '허가일', '착공일', '준공일', '사업자번호', '시공사선정', '출처'];
   const rows = results.map(r => [
-    r.name, r.address, r.developer, r.builder, r.designer || '', r.scale, r.purpose, r.area, r.status, r.date, r.source,
+    r.name, r.address, r.developer, r.builder, r.designer || '', r.scale, r.purpose, r.area, r.status, r.date,
+    r.startDate || '', r.completionDate || '', r.ownerBizNo || '', r.builderStatus || '', r.source,
   ]);
   const csvContent = '\uFEFF' + [headers, ...rows].map(row =>
     row.map(cell => `"${(cell || '').replace(/"/g, '""')}"`).join(',')
@@ -58,6 +59,10 @@ const downloadExcel = (results: ProjectResult[], query: string) => {
   URL.revokeObjectURL(url);
   toast.success('Excel(CSV) 파일이 다운로드되었습니다.');
 };
+
+/** Normalize key for deduplication — strips whitespace, special chars */
+const normalizeDedup = (name: string, address: string) =>
+  `${name}_${address}`.toLowerCase().normalize('NFKC').replace(/[\s\-·,.()]/g, '');
 
 const Index = () => {
   const [user, setUser] = useState<UserSession | null>(null);
@@ -106,6 +111,9 @@ const Index = () => {
 
   const indexedData = useMemo(() => buildSearchIndex(localDB), [localDB]);
   const isAdmin = useMemo(() => user?.email === ADMIN_EMAIL, [user]);
+  const searchHistoryRef = useRef(searchHistory);
+  searchHistoryRef.current = searchHistory;
+  const isSearchingRef = useRef(false);
 
   const handleLogin = (u: UserSession) => {
     setUser(u);
@@ -131,36 +139,40 @@ const Index = () => {
 
   const performSearch = useCallback(async (query: string) => {
     const trimmed = query.trim();
-    if (!trimmed || isSearching) return;
+    if (!trimmed || isSearchingRef.current) return;
 
+    isSearchingRef.current = true;
     setSearchQuery(trimmed);
     setIsSearching(true);
     setHasSearched(true);
     setResults([]);
 
+    // Log history using ref to avoid stale closure
     const newLog: SearchLog = { query: trimmed, time: new Date().toISOString(), user: user?.email || '' };
-    const updatedHistory = [newLog, ...searchHistory].slice(0, 30);
+    const updatedHistory = [newLog, ...searchHistoryRef.current].slice(0, 30);
     setSearchHistory(updatedHistory);
     localStorage.setItem(`${APP_ID}_history`, JSON.stringify(updatedHistory));
 
-    // 1. Local DB search (instant)
+    // 1. Local DB search (instant) — show immediately
     const localResults = searchLocalDB(indexedData, trimmed);
+    if (localResults.length > 0) {
+      setResults(localResults);
+    }
 
-    // 2. Edge function search (async)
+    // 2. Edge function search (async) — append when ready
     const edgeResults = await fetchBuildingIntelligence(trimmed, user?.email || '');
 
-    // Merge: local DB first (trusted), then AI (reference)
+    // Merge: local DB first (trusted), then AI (reference) with fuzzy dedup
     const seen = new Set<string>();
     const merged: ProjectResult[] = [];
-    // Local DB results first — 100% trusted
+
     for (const item of localResults) {
-      const key = `${item.name}_${item.address}`.toLowerCase().replace(/\s/g, '');
+      const key = normalizeDedup(item.name, item.address);
       seen.add(key);
       merged.push(item);
     }
-    // AI results second — reference only, skip duplicates
     for (const item of edgeResults) {
-      const key = `${item.name}_${item.address}`.toLowerCase().replace(/\s/g, '');
+      const key = normalizeDedup(item.name, item.address);
       if (!seen.has(key)) {
         seen.add(key);
         merged.push(item);
@@ -169,6 +181,7 @@ const Index = () => {
 
     setResults(merged);
     setIsSearching(false);
+    isSearchingRef.current = false;
 
     if (merged.length === 0) {
       toast.info('검색된 프로젝트가 없습니다.');
@@ -179,7 +192,7 @@ const Index = () => {
     } else if (localResults.length === 0 && edgeResults.length > 0) {
       toast.info('내부 DB에는 없으나, AI 검색 결과를 참고용으로 가져왔습니다.');
     }
-  }, [isSearching, searchHistory, user, indexedData]);
+  }, [user, indexedData]);
 
   const handleSearch = () => performSearch(searchQuery);
 
