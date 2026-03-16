@@ -27,6 +27,30 @@ const normalizeSearchText = (value: string): string => {
     .replace(/[^0-9a-z가-힣]/g, '');
 };
 
+/**
+ * Calculate similarity ratio between two strings (0~1).
+ * Uses longest common subsequence approach for Korean text matching.
+ */
+function similarity(a: string, b: string): number {
+  if (!a || !b) return 0;
+  if (a === b) return 1;
+  // If one contains the other, high similarity
+  if (a.includes(b) || b.includes(a)) return 1;
+
+  const shorter = a.length <= b.length ? a : b;
+  const longer = a.length > b.length ? a : b;
+
+  // Bigram-based similarity (Dice coefficient)
+  const bigramsA = new Set<string>();
+  for (let i = 0; i < shorter.length - 1; i++) bigramsA.add(shorter.slice(i, i + 2));
+  let matches = 0;
+  for (let i = 0; i < longer.length - 1; i++) {
+    if (bigramsA.has(longer.slice(i, i + 2))) matches++;
+  }
+  const total = (shorter.length - 1) + (longer.length - 1);
+  return total > 0 ? (2 * matches) / total : 0;
+}
+
 // ── IndexedDB helpers ──
 
 const openDB = (): Promise<IDBDatabase> => {
