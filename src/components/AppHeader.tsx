@@ -8,6 +8,7 @@ interface AppHeaderProps {
   userEmail: string;
   onTabChange: (tab: 'search' | 'admin') => void;
   onLogout: () => void;
+  onReset: () => void;
 }
 
 const AppHeader: React.FC<AppHeaderProps> = ({ isAdmin, activeTab, userEmail, onTabChange, onLogout }) => {
