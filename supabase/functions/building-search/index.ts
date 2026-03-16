@@ -170,7 +170,7 @@ async function searchPublicData(query: string) {
   }
 
   const encodedQuery = encodeURIComponent(query);
-  const url = `http://apis.data.go.kr/1613000/ArchPmsService_v2/getApBasisOulnInfo?serviceKey=${serviceKey}&numOfRows=10&pageNo=1&type=json&platPlc=${encodedQuery}`;
+  const url = `http://apis.data.go.kr/1613000/ArchPmsService_v2/getApBasisOulnInfo?serviceKey=${serviceKey}&numOfRows=20&pageNo=1&type=json&platPlc=${encodedQuery}`;
 
   try {
     const response = await fetchWithTimeout(url, {}, 5000);
