@@ -60,6 +60,10 @@ const downloadExcel = (results: ProjectResult[], query: string) => {
   toast.success('Excel(CSV) 파일이 다운로드되었습니다.');
 };
 
+/** Normalize key for deduplication — strips whitespace, special chars */
+const normalizeDedup = (name: string, address: string) =>
+  `${name}_${address}`.toLowerCase().normalize('NFKC').replace(/[\s\-·,.()]/g, '');
+
 const Index = () => {
   const [user, setUser] = useState<UserSession | null>(null);
   const [activeTab, setActiveTab] = useState<'search' | 'admin'>('search');
