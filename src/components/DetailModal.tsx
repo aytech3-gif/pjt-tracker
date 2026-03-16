@@ -109,21 +109,40 @@ const DetailModal: React.FC<DetailModalProps> = ({ project, onClose, onSearchDev
             {/* Main content */}
             <div className="space-y-10 lg:col-span-8">
               {/* Spec cards */}
-              <div className="grid grid-cols-3 gap-6">
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
                 {[
                   { label: '규모', val: project.scale || '확인중', icon: <Layers size={14} /> },
                   { label: '연면적', val: project.area || '확인중', icon: <MapPin size={14} /> },
-                  { label: '기준일자', val: project.date || '-', icon: <Calendar size={14} /> },
+                  { label: '착공일', val: project.startDate || project.date || '-', icon: <Calendar size={14} /> },
+                  { label: '준공일', val: project.completionDate || '-', icon: <Calendar size={14} /> },
                 ].map((s, i) => (
-                  <div key={i} className="rounded-3xl border border-border bg-secondary p-6">
+                  <div key={i} className="rounded-3xl border border-border bg-secondary p-5">
                     <div className="mb-2 flex items-center gap-2 text-muted-foreground">
                       {s.icon}
                       <span className="font-display text-[9px] uppercase tracking-tighter">{s.label}</span>
                     </div>
-                    <p className="font-display text-lg text-foreground">{s.val}</p>
+                    <p className="font-display text-base text-foreground">{s.val}</p>
                   </div>
                 ))}
               </div>
+
+              {/* Additional info row */}
+              {(project.ownerBizNo || project.builderStatus) && (
+                <div className="grid grid-cols-2 gap-4">
+                  {project.ownerBizNo && (
+                    <div className="rounded-2xl border border-border bg-secondary p-5">
+                      <p className="mb-1 font-display text-[9px] uppercase tracking-tighter text-muted-foreground">건축주 사업자번호</p>
+                      <p className="font-display text-sm text-foreground">{project.ownerBizNo}</p>
+                    </div>
+                  )}
+                  {project.builderStatus && (
+                    <div className="rounded-2xl border border-border bg-secondary p-5">
+                      <p className="mb-1 font-display text-[9px] uppercase tracking-tighter text-muted-foreground">시공사 선정</p>
+                      <p className="font-display text-sm text-foreground">{project.builderStatus}</p>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Address — click to open Naver Map */}
               <a
