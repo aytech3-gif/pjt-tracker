@@ -16,6 +16,8 @@ export interface LocalDBItem {
 export interface LocalDBIndexedItem extends LocalDBItem {
   _searchIdx: string;
   _searchCompact: string;
+  _nameCompact: string;
+  _addrCompact: string;
 }
 
 const normalizeSearchText = (value: string): string => {
@@ -28,19 +30,20 @@ const normalizeSearchText = (value: string): string => {
 };
 
 /**
- * Calculate similarity ratio between two strings (0~1).
- * Uses longest common subsequence approach for Korean text matching.
+ * Bigram Dice coefficient similarity (0~1).
+ * Guard: returns 0 for very short strings to prevent false positives.
  */
 function similarity(a: string, b: string): number {
   if (!a || !b) return 0;
   if (a === b) return 1;
-  // If one contains the other, high similarity
   if (a.includes(b) || b.includes(a)) return 1;
+
+  // Prevent false positives on very short strings (< 3 chars)
+  if (a.length < 3 || b.length < 3) return 0;
 
   const shorter = a.length <= b.length ? a : b;
   const longer = a.length > b.length ? a : b;
 
-  // Bigram-based similarity (Dice coefficient)
   const bigramsA = new Set<string>();
   for (let i = 0; i < shorter.length - 1; i++) bigramsA.add(shorter.slice(i, i + 2));
   let matches = 0;
@@ -51,9 +54,20 @@ function similarity(a: string, b: string): number {
   return total > 0 ? (2 * matches) / total : 0;
 }
 
-// ── IndexedDB helpers ──
+// ── IndexedDB helpers (cached connection) ──
+
+let _dbInstance: IDBDatabase | null = null;
 
 const openDB = (): Promise<IDBDatabase> => {
+  if (_dbInstance) {
+    try {
+      // Quick check if connection is still alive
+      _dbInstance.transaction(INDEXED_DB_STORE, 'readonly');
+      return Promise.resolve(_dbInstance);
+    } catch {
+      _dbInstance = null;
+    }
+  }
   return new Promise((resolve, reject) => {
     if (typeof indexedDB === 'undefined') {
       reject(new Error('IndexedDB를 사용할 수 없습니다.'));
@@ -66,7 +80,11 @@ const openDB = (): Promise<IDBDatabase> => {
         db.createObjectStore(INDEXED_DB_STORE);
       }
     };
-    request.onsuccess = () => resolve(request.result);
+    request.onsuccess = () => {
+      _dbInstance = request.result;
+      _dbInstance.onclose = () => { _dbInstance = null; };
+      resolve(_dbInstance);
+    };
     request.onerror = () => reject(request.error ?? new Error('IndexedDB open 실패'));
   });
 };
@@ -79,9 +97,6 @@ const idbGet = async (key: string): Promise<string | null> => {
     const request = store.get(key);
     request.onsuccess = () => resolve((request.result as string | undefined) ?? null);
     request.onerror = () => reject(request.error ?? new Error('IndexedDB read 실패'));
-    tx.oncomplete = () => db.close();
-    tx.onerror = () => db.close();
-    tx.onabort = () => db.close();
   });
 };
 
@@ -91,9 +106,9 @@ const idbSet = async (key: string, value: string): Promise<void> => {
     const tx = db.transaction(INDEXED_DB_STORE, 'readwrite');
     const store = tx.objectStore(INDEXED_DB_STORE);
     store.put(value, key);
-    tx.oncomplete = () => { db.close(); resolve(); };
-    tx.onerror = () => { db.close(); reject(tx.error ?? new Error('IndexedDB write 실패')); };
-    tx.onabort = () => { db.close(); reject(new Error('IndexedDB write 중단')); };
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error ?? new Error('IndexedDB write 실패'));
+    tx.onabort = () => reject(new Error('IndexedDB write 중단'));
   });
 };
 
@@ -118,7 +133,9 @@ async function downloadFromCloud(): Promise<LocalDBItem[] | null> {
       .download(CLOUD_FILE_PATH);
     if (error || !data) return null;
     const text = await data.text();
-    return JSON.parse(text) as LocalDBItem[];
+    const parsed = JSON.parse(text);
+    if (!Array.isArray(parsed)) return null;
+    return parsed as LocalDBItem[];
   } catch {
     return null;
   }
@@ -135,24 +152,17 @@ export async function uploadToCloud(items: LocalDBItem[]): Promise<void> {
 
 // ── Main API ──
 
-/**
- * Load local DB: check cloud version → if newer than cache, download → cache in IndexedDB.
- */
 export async function loadLocalDB(): Promise<LocalDBItem[]> {
-  // 1. Check cloud version
   const cloudVersion = await getCloudVersion();
 
-  // 2. Check local cache version
   let cachedVersion: string | null = null;
   try {
     cachedVersion = await idbGet(LOCAL_DB_VERSION_KEY);
   } catch { /* no cache */ }
 
-  // 3. If cloud has data and it's newer (or no cache), download
   if (cloudVersion && cloudVersion !== cachedVersion) {
     const cloudData = await downloadFromCloud();
     if (cloudData && cloudData.length > 0) {
-      // Cache locally
       try {
         await idbSet(LOCAL_DB_KEY, JSON.stringify(cloudData));
         await idbSet(LOCAL_DB_VERSION_KEY, cloudVersion);
@@ -161,7 +171,6 @@ export async function loadLocalDB(): Promise<LocalDBItem[]> {
     }
   }
 
-  // 4. Use local cache
   try {
     const cached = await idbGet(LOCAL_DB_KEY);
     if (cached) return JSON.parse(cached);
@@ -172,21 +181,21 @@ export async function loadLocalDB(): Promise<LocalDBItem[]> {
 
 export async function saveLocalDB(data: LocalDBItem[]): Promise<void> {
   const json = JSON.stringify(data);
-  // Save to IndexedDB cache
   try {
     await idbSet(LOCAL_DB_KEY, json);
   } catch { /* cache failed */ }
 
-  // Upload to cloud (shared with all users)
   await uploadToCloud(data);
 
-  // Update local version marker
   try {
     const newVersion = new Date().toISOString();
     await idbSet(LOCAL_DB_VERSION_KEY, newVersion);
   } catch { /* ok */ }
 }
 
+/**
+ * Build search index — pre-compute normalized fields for faster search.
+ */
 export function buildSearchIndex(data: LocalDBItem[]): LocalDBIndexedItem[] {
   return data.map(item => {
     const bizIds = [item['건축주사업자번호'], item['설계자사업자번호'], item['시공자사업자번호']]
@@ -194,22 +203,38 @@ export function buildSearchIndex(data: LocalDBItem[]): LocalDBIndexedItem[] {
       .map(id => id.replace(/-/g, ''))
       .join(' ');
     const mergedText = `${Object.values(item).join(' ')} ${bizIds}`;
+
+    // Pre-compute per-field normalized text for fuzzy matching
+    const nameCompact = normalizeSearchText(item['건물명'] || item['공사명'] || '');
+    const addrCompact = normalizeSearchText(
+      [item['시도'], item['시군구'], item['법정동'], item['대지위치']].filter(Boolean).join('')
+    );
+
     return {
       ...item,
       _searchIdx: mergedText.toLowerCase(),
       _searchCompact: normalizeSearchText(mergedText),
+      _nameCompact: nameCompact,
+      _addrCompact: addrCompact,
     };
   });
 }
 
+// Unique ID counter
+let _idCounter = 0;
+
+/**
+ * Search local DB with exact substring + fuzzy (70%+) matching.
+ * Pre-computed _nameCompact / _addrCompact avoids redundant normalization per search.
+ */
 export function searchLocalDB(indexedData: LocalDBIndexedItem[], query: string): ProjectResult[] {
   const rawQ = query.trim().toLowerCase();
   const compactQ = normalizeSearchText(rawQ);
 
   if (rawQ.length < 2 && compactQ.length < 2) return [];
 
-  // Score each item: exact match = 1.0, fuzzy >= 0.7 accepted
   const scored: { item: LocalDBIndexedItem; score: number }[] = [];
+  const doFuzzy = compactQ.length >= 3; // Only fuzzy-match for meaningful queries
 
   for (const item of indexedData) {
     // Exact substring match → score 1.0
@@ -218,18 +243,15 @@ export function searchLocalDB(indexedData: LocalDBIndexedItem[], query: string):
       continue;
     }
 
-    // Fuzzy match against key fields: 건물명, 공사명, 대지위치, 시도+시군구+법정동
-    const nameCompact = normalizeSearchText(item['건물명'] || item['공사명'] || '');
-    const addrCompact = normalizeSearchText(
-      [item['시도'], item['시군구'], item['법정동'], item['대지위치']].filter(Boolean).join('')
-    );
+    // Fuzzy match against pre-computed fields
+    if (doFuzzy) {
+      const nameSim = similarity(compactQ, item._nameCompact);
+      const addrSim = similarity(compactQ, item._addrCompact);
+      const bestSim = Math.max(nameSim, addrSim);
 
-    const nameSim = similarity(compactQ, nameCompact);
-    const addrSim = similarity(compactQ, addrCompact);
-    const bestSim = Math.max(nameSim, addrSim);
-
-    if (bestSim >= 0.7) {
-      scored.push({ item, score: bestSim });
+      if (bestSim >= 0.7) {
+        scored.push({ item, score: bestSim });
+      }
     }
   }
 
@@ -238,7 +260,7 @@ export function searchLocalDB(indexedData: LocalDBIndexedItem[], query: string):
 
   return scored
     .slice(0, 20)
-    .map(({ item, score }, idx) => {
+    .map(({ item, score }) => {
       const formatNum = (val: string | undefined) => {
         if (!val || val === '0') return '';
         const num = parseFloat(String(val).replace(/,/g, ''));
@@ -250,7 +272,7 @@ export function searchLocalDB(indexedData: LocalDBIndexedItem[], query: string):
       if (lot && item['지'] && item['지'] !== '0') lot += `-${String(item['지']).replace(/^0+/, '')}`;
       const address = addressParts.length > 0 ? [...addressParts, lot].join(' ').trim() : '';
 
-      // Determine status from dates
+      // Status from dates
       const hasPermit = !!item['허가일'];
       const hasStart = !!item['착공일'];
       const hasCompletion = !!item['준공일'];
@@ -268,7 +290,7 @@ export function searchLocalDB(indexedData: LocalDBIndexedItem[], query: string):
       }
 
       return {
-        id: `local-${idx}-${Date.now()}`,
+        id: `local-${++_idCounter}-${Date.now()}`,
         name: item['건물명'] || item['공사명'] || '정보없음',
         address: address || item['대지위치'] || '',
         developer: item['건축주상호명'] || '확인필요',
