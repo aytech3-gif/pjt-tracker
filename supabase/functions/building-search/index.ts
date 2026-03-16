@@ -48,7 +48,7 @@ async function searchWeb(query: string): Promise<string> {
         },
         body: JSON.stringify({
           query: `${query} 시행 시공 프로젝트 사업실적`,
-          limit: 5,
+          limit: 10,
           lang: "ko",
           country: "kr",
         }),
