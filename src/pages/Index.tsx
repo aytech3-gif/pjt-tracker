@@ -216,6 +216,7 @@ const Index = () => {
         userEmail={user.email}
         onTabChange={setActiveTab}
         onLogout={handleLogout}
+        onReset={handleReset}
       />
 
       <main className="mx-auto max-w-7xl p-8 lg:p-12">
