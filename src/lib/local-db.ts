@@ -263,20 +263,35 @@ export function searchLocalDB(indexedData: LocalDBIndexedItem[], query: string):
   const scored: { item: LocalDBIndexedItem; score: number }[] = [];
   const doFuzzy = compactQ.length >= 3; // Only fuzzy-match for meaningful queries
 
+  // Normalize biz number query (strip dashes) for dedicated biz number matching
+  const isBizNoQuery = /^\d[\d-]{5,}$/.test(rawQ.replace(/\s/g, ''));
+  const bizNoQ = rawQ.replace(/[\s-]/g, '');
+
   for (const item of indexedData) {
-    // Exact substring match → score 1.0
+    // 1) Exact substring match → score 1.0
     if (item._searchIdx.includes(rawQ) || (compactQ.length >= 2 && item._searchCompact.includes(compactQ))) {
       scored.push({ item, score: 1.0 });
       continue;
     }
 
-    // Fuzzy match against pre-computed fields
+    // 2) Business number match (dash-insensitive)
+    if (isBizNoQuery && bizNoQ.length >= 6) {
+      const itemBizNos = [
+        item['건축주사업자번호'], item['설계자사업자번호'], item['시공자사업자번호']
+      ].filter(Boolean).map(v => v.replace(/[\s-]/g, ''));
+      if (itemBizNos.some(bn => bn.includes(bizNoQ) || bizNoQ.includes(bn))) {
+        scored.push({ item, score: 1.0 });
+        continue;
+      }
+    }
+
+    // 3) Fuzzy match against name and address (threshold 0.55)
     if (doFuzzy) {
       const nameSim = similarity(compactQ, item._nameCompact);
       const addrSim = similarity(compactQ, item._addrCompact);
       const bestSim = Math.max(nameSim, addrSim);
 
-      if (bestSim >= 0.7) {
+      if (bestSim >= 0.55) {
         scored.push({ item, score: bestSim });
       }
     }
