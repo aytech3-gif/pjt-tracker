@@ -30,8 +30,29 @@ const normalizeSearchText = (value: string): string => {
 };
 
 /**
- * Bigram Dice coefficient similarity (0~1).
- * Guard: returns 0 for very short strings to prevent false positives.
+ * Levenshtein edit distance.
+ */
+function levenshtein(a: string, b: string): number {
+  const m = a.length, n = b.length;
+  if (m === 0) return n;
+  if (n === 0) return m;
+  let prev = Array.from({ length: n + 1 }, (_, i) => i);
+  let curr = new Array(n + 1);
+  for (let i = 1; i <= m; i++) {
+    curr[0] = i;
+    for (let j = 1; j <= n; j++) {
+      curr[j] = a[i - 1] === b[j - 1]
+        ? prev[j - 1]
+        : 1 + Math.min(prev[j - 1], prev[j], curr[j - 1]);
+    }
+    [prev, curr] = [curr, prev];
+  }
+  return prev[n];
+}
+
+/**
+ * Combined similarity: max of bigram Dice and Levenshtein-based similarity.
+ * Returns 0~1. Guard: returns 0 for very short strings to prevent false positives.
  */
 function similarity(a: string, b: string): number {
   if (!a || !b) return 0;
@@ -41,9 +62,13 @@ function similarity(a: string, b: string): number {
   // Prevent false positives on very short strings (< 3 chars)
   if (a.length < 3 || b.length < 3) return 0;
 
+  // Levenshtein-based similarity
+  const maxLen = Math.max(a.length, b.length);
+  const levSim = 1 - levenshtein(a, b) / maxLen;
+
+  // Bigram Dice coefficient
   const shorter = a.length <= b.length ? a : b;
   const longer = a.length > b.length ? a : b;
-
   const bigramsA = new Set<string>();
   for (let i = 0; i < shorter.length - 1; i++) bigramsA.add(shorter.slice(i, i + 2));
   let matches = 0;
@@ -51,7 +76,9 @@ function similarity(a: string, b: string): number {
     if (bigramsA.has(longer.slice(i, i + 2))) matches++;
   }
   const total = (shorter.length - 1) + (longer.length - 1);
-  return total > 0 ? (2 * matches) / total : 0;
+  const diceSim = total > 0 ? (2 * matches) / total : 0;
+
+  return Math.max(levSim, diceSim);
 }
 
 // ── IndexedDB helpers (cached connection) ──
@@ -236,20 +263,35 @@ export function searchLocalDB(indexedData: LocalDBIndexedItem[], query: string):
   const scored: { item: LocalDBIndexedItem; score: number }[] = [];
   const doFuzzy = compactQ.length >= 3; // Only fuzzy-match for meaningful queries
 
+  // Normalize biz number query (strip dashes) for dedicated biz number matching
+  const isBizNoQuery = /^\d[\d-]{5,}$/.test(rawQ.replace(/\s/g, ''));
+  const bizNoQ = rawQ.replace(/[\s-]/g, '');
+
   for (const item of indexedData) {
-    // Exact substring match → score 1.0
+    // 1) Exact substring match → score 1.0
     if (item._searchIdx.includes(rawQ) || (compactQ.length >= 2 && item._searchCompact.includes(compactQ))) {
       scored.push({ item, score: 1.0 });
       continue;
     }
 
-    // Fuzzy match against pre-computed fields
+    // 2) Business number match (dash-insensitive)
+    if (isBizNoQuery && bizNoQ.length >= 6) {
+      const itemBizNos = [
+        item['건축주사업자번호'], item['설계자사업자번호'], item['시공자사업자번호']
+      ].filter(Boolean).map(v => v.replace(/[\s-]/g, ''));
+      if (itemBizNos.some(bn => bn.includes(bizNoQ) || bizNoQ.includes(bn))) {
+        scored.push({ item, score: 1.0 });
+        continue;
+      }
+    }
+
+    // 3) Fuzzy match against name and address (threshold 0.55)
     if (doFuzzy) {
       const nameSim = similarity(compactQ, item._nameCompact);
       const addrSim = similarity(compactQ, item._addrCompact);
       const bestSim = Math.max(nameSim, addrSim);
 
-      if (bestSim >= 0.7) {
+      if (bestSim >= 0.55) {
         scored.push({ item, score: bestSim });
       }
     }
