@@ -30,43 +30,45 @@ const normalizeSearchText = (value: string): string => {
 };
 
 /**
- * Levenshtein edit distance.
+ * Levenshtein edit distance with early exit optimization.
  */
-function levenshtein(a: string, b: string): number {
+function levenshtein(a: string, b: string, maxDist = Infinity): number {
   const m = a.length, n = b.length;
   if (m === 0) return n;
   if (n === 0) return m;
+  if (Math.abs(m - n) > maxDist) return maxDist + 1;
+
   let prev = Array.from({ length: n + 1 }, (_, i) => i);
   let curr = new Array(n + 1);
   for (let i = 1; i <= m; i++) {
     curr[0] = i;
+    let rowMin = i;
     for (let j = 1; j <= n; j++) {
       curr[j] = a[i - 1] === b[j - 1]
         ? prev[j - 1]
         : 1 + Math.min(prev[j - 1], prev[j], curr[j - 1]);
+      if (curr[j] < rowMin) rowMin = curr[j];
     }
+    if (rowMin > maxDist) return maxDist + 1;
     [prev, curr] = [curr, prev];
   }
   return prev[n];
 }
 
 /**
- * Combined similarity: max of bigram Dice and Levenshtein-based similarity.
- * Returns 0~1. Guard: returns 0 for very short strings to prevent false positives.
+ * Combined similarity with early exits for speed.
  */
 function similarity(a: string, b: string): number {
   if (!a || !b) return 0;
   if (a === b) return 1;
   if (a.includes(b) || b.includes(a)) return 1;
-
-  // Prevent false positives on very short strings (< 3 chars)
   if (a.length < 3 || b.length < 3) return 0;
 
-  // Levenshtein-based similarity
-  const maxLen = Math.max(a.length, b.length);
-  const levSim = 1 - levenshtein(a, b) / maxLen;
+  // Quick length ratio check
+  const lenRatio = Math.min(a.length, b.length) / Math.max(a.length, b.length);
+  if (lenRatio < 0.4) return 0;
 
-  // Bigram Dice coefficient
+  // Bigram Dice (cheaper — do first)
   const shorter = a.length <= b.length ? a : b;
   const longer = a.length > b.length ? a : b;
   const bigramsA = new Set<string>();
@@ -77,6 +79,14 @@ function similarity(a: string, b: string): number {
   }
   const total = (shorter.length - 1) + (longer.length - 1);
   const diceSim = total > 0 ? (2 * matches) / total : 0;
+
+  if (diceSim >= 0.7) return diceSim;
+
+  // Levenshtein with early exit
+  const maxLen = Math.max(a.length, b.length);
+  const maxDist = Math.floor(maxLen * 0.45);
+  const dist = levenshtein(a, b, maxDist);
+  const levSim = dist > maxDist ? 0 : 1 - dist / maxLen;
 
   return Math.max(levSim, diceSim);
 }
