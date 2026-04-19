@@ -125,7 +125,7 @@ const AICard: React.FC<{ item: ProjectResult; onSelect: (item: ProjectResult) =>
   return (
     <div
       onClick={() => onSelect(item)}
-      className="group relative flex h-[420px] cursor-pointer flex-col justify-between overflow-hidden rounded-5xl border border-border bg-card p-8 transition-all hover:border-primary/30 hover:shadow-2xl"
+      className="group relative flex cursor-pointer flex-col justify-between overflow-hidden rounded-5xl border border-border bg-card p-8 transition-all hover:border-primary/30 hover:shadow-2xl"
     >
       <div className="absolute right-6 top-6 rounded-full bg-accent p-2">
         <Sparkles size={16} className="animate-pulse text-primary" />
@@ -180,7 +180,7 @@ const ResultsList: React.FC<ResultsListProps> = ({ results, isSearching, hasSear
     return (
       <div className="flex flex-col items-center justify-center py-24">
         <Loader2 className="mb-4 h-6 w-6 animate-spin text-muted-foreground" />
-        <p className="font-data text-xs text-muted-foreground">Hybrid Intelligence Search...</p>
+        <p className="font-data text-xs text-muted-foreground">검색 중입니다...</p>
       </div>
     );
   }
@@ -254,8 +254,8 @@ const ResultsList: React.FC<ResultsListProps> = ({ results, isSearching, hasSear
         <Database size={40} className="text-muted-foreground/20" />
       </div>
       <div className="space-y-2 text-center">
-        <p className="font-display text-sm uppercase tracking-[0.4em] text-muted-foreground">Integrated Hybrid Search Engine</p>
-        <p className="font-body text-xs font-bold text-muted-foreground/60">Enter keywords to start real-time AI & Internal analysis</p>
+        <p className="font-display text-sm uppercase tracking-[0.4em] text-muted-foreground">통합 프로젝트 검색</p>
+        <p className="font-body text-xs font-bold text-muted-foreground/60">현장명, 지역, 시행사 등 키워드를 입력하세요</p>
       </div>
     </div>
   );
