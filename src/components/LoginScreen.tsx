@@ -24,7 +24,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
             LGE PJT V3.2
           </h1>
           <p className="mt-2 font-display text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
-            Hybrid Search Engine
+            프로젝트 통합 검색 시스템
           </p>
         </div>
 
@@ -33,7 +33,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
             type="email"
             required
             className="w-full rounded-2xl border-2 border-secondary bg-secondary px-6 py-4 font-body font-bold text-foreground outline-none transition-all placeholder:text-muted-foreground/50 focus:border-primary"
-            placeholder="LGE Email Address"
+            placeholder="LGE 이메일 주소 입력"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
@@ -41,7 +41,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
             type="submit"
             className="w-full rounded-2xl bg-foreground py-5 font-display text-sm uppercase tracking-widest text-primary-foreground shadow-lg transition-all hover:bg-primary active:scale-95"
           >
-            SYSTEM ACCESS
+            로그인
           </button>
         </form>
       </div>

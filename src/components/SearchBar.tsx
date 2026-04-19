@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, Loader2, Sparkles } from 'lucide-react';
+import { Search, Loader2 } from 'lucide-react';
 
 interface SearchBarProps {
   query: string;
@@ -30,8 +30,8 @@ const SearchBar: React.FC<SearchBarProps> = ({ query, onQueryChange, onSearch, i
             <Loader2 className="animate-spin" size={18} />
           ) : (
             <>
-              <Sparkles size={18} />
-              AI Intelligence
+              <Search size={18} />
+              프로젝트 검색
             </>
           )}
         </button>
